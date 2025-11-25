@@ -25,6 +25,12 @@ function love.load()
 
     victoryFont = love.graphics.newFont("font.ttf", 24)
 
+    sounds = {
+        ['paddle_hit'] = love.audio.newSource('sounds/paddle_hit.wav','static'),
+        ['score']=love.audio.newSource('sounds/score.wav','static'),
+        ['wall_hit']=love.audio.newSource('sounds/wall_hit.wav','static'),
+    }
+
     player1Score = 0
     player2Score = 0
 
@@ -50,10 +56,14 @@ function love.load()
         WINDOW_HEIGHT,
         {
             fullscreen = false,
-            resizable = false,
+            resizable = true,
             vsync = true
         }
     )
+end
+
+function love.resize(w,h)
+    push:resize(w,h)
 end
 
 function love.update(dt)
@@ -61,21 +71,29 @@ function love.update(dt)
     if ball:collides(paddle1) then
         ball.dx = -ball.dx*1.2
         ball.x = paddle1.x + ball.width
+
+        sounds['paddle_hit']:play()
     end
 
     if ball:collides(paddle2) then
         ball.dx = -ball.dx*1.2
         ball.x = paddle2.x - ball.width
+
+        sounds['paddle_hit']:play()
     end
 
     if ball.y <= 0 then
-        ball.dy = math.random(10,150)
+        ball.dy = -ball.dy
         ball.y = 0
+
+        sounds['wall_hit']:play()
     end
     
     if ball.y >= VIRTUAL_HEIGHT - 4 then
-        ball.dy = -math.random(10,150)
-        ball.y = VIRTUAL_HEIGHT - 5
+        ball.dy = -ball.dy
+        ball.y = VIRTUAL_HEIGHT - 4
+
+        sounds['wall_hit']:play()
     end
 
     paddle1:update(dt)
@@ -108,7 +126,7 @@ function love.update(dt)
                 servingPlayer = 1
                 ball.dx = 100
 
-                
+                sounds['score']:play()
 
                 if player2Score == 5 then
                     gameState = 'victory'
@@ -125,6 +143,8 @@ function love.update(dt)
                 servingPlayer = 2
                 ball.dx = -100
                 gameState = 'serve'
+
+                sounds['score']:play()
 
                 if player1Score == 5 then
                     gameState = 'victory'
