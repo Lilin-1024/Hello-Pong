@@ -12,6 +12,15 @@ VIRTUAL_HEIGHT = 243
 
 PADDLE_SPEED = 200
 
+menuItems = {
+    "Players",
+    "Win Score",
+    "Free Mode",
+    "Particles",
+    "Music"
+}
+
+
 function love.load()
     math.randomseed(os.time())
 
@@ -19,11 +28,16 @@ function love.load()
 
     love.window.setTitle('Pong')
 
-    smallFont = love.graphics.newFont("font.ttf", 8)
+    instructFont = love.graphics.newFont("fonts/ari_w9500/ari-w9500.ttf", 11)
 
-    scoreFont = love.graphics.newFont("font.ttf", 32)
+    smallFont = love.graphics.newFont("fonts/font.ttf", 8)
 
-    victoryFont = love.graphics.newFont("font.ttf", 24)
+    titleFont = love.graphics.newFont("fonts/ari_w9500/ari-w9500-condensed-display.ttf", 32)
+
+
+    scoreFont = love.graphics.newFont("fonts/font.ttf", 32)
+
+    victoryFont = love.graphics.newFont("fonts/font.ttf", 24)
 
     sounds = {
         ['paddle_hit'] = love.audio.newSource('sounds/paddle_hit.wav','static'),
@@ -31,6 +45,7 @@ function love.load()
         ['wall_hit']=love.audio.newSource('sounds/wall_hit.wav','static'),
     }
 
+    --initialization
     player1Score = 0
     player2Score = 0
 
@@ -41,7 +56,10 @@ function love.load()
     paddle1 = Paddle(5, 20, 5, 20)
     paddle2 = Paddle(VIRTUAL_WIDTH - 10, VIRTUAL_HEIGHT - 30, 5, 20)
     ball = Ball(VIRTUAL_WIDTH / 2 - 2, VIRTUAL_HEIGHT / 2 - 2, 5, 5)
-    gameState = 'start'
+
+    --menu initialization
+    gameState = 'menu'
+    selectedItem = 1
 
     if servingPlayer == 1 then
         ball.dx = 100
@@ -160,17 +178,50 @@ end
 
 -- state switch
 function love.keypressed(key)
-    if key == "escape" then
-        love.event.quit()
-    elseif key == 'enter' or key == 'return' then
-        if gameState == 'start' then
+
+    --menu press
+    if gameState == "menu" then
+        if key == "right" then
+            selectedItem = selectedItem + 1
+            if selectedItem > 5 then
+                selectedItem = 1
+            end
+        elseif key == "left" then
+            selectedItem = selectedItem - 1
+            if selectedItem < 1 then
+                selectedItem = 5
+            end
+        elseif key == 'z' then
+            print('selected '..menuItems[selectedItem])
+        elseif key == 'enter' or 'return' then
             gameState = 'serve'
-        elseif gameState =='serve' then
+        elseif key == "escape" then
+            love.event.quit()
+        end
+
+    end
+
+    if gameState == 'serve' then
+        if key == 'enter' or key == 'return' then
             gameState = 'play'
-        elseif gameState == 'victory' then
+        elseif key == "escape" then
+            gameState = 'menu'
+        end
+    end
+
+    if gameState == 'play' then
+        if key == "escape" then
+            gameState = 'menu'
+        end
+    end
+
+    if gameState == 'victory' then
+        if key == 'enter' or key == 'return' then
+            gameState = 'start'
             player1Score = 0
             player2Score = 0
-            gameState = 'start'
+        elseif key == "escape" then
+            gameState = 'menu'
         end
     end
 end
@@ -180,12 +231,24 @@ function love.draw()
 
     love.graphics.clear(40/255, 45/255, 52/255, 1)
 
+    --menu draw
+
+    if gameState =='menu' then
+        --title
+        love.graphics.setFont(titleFont)
+        love.graphics.printf("100% Hello Pong!",0,50,VIRTUAL_WIDTH,'center')
+
+        love.graphics.setFont(instructFont)
+        love.graphics.printf("< Use ← → to navigate and Z to select >", 0, 90, VIRTUAL_WIDTH, "center")
+
+        --option
+        drawMenuOptions()
+
+    end
+
     love.graphics.setFont(smallFont)
 
-    if gameState == 'start' then
-        love.graphics.printf('Welcome to Pong!',0,20,VIRTUAL_WIDTH,'center')
-        love.graphics.printf('Press Enter to Play!',0,32,VIRTUAL_WIDTH,'center')
-    elseif gameState == 'serve' then
+    if gameState == 'serve' then
         love.graphics.printf('Player'..tostring(servingPlayer).."'s turn!",0,20,VIRTUAL_WIDTH,'center')
         love.graphics.printf('Press Enter to Serve!',0,32,VIRTUAL_WIDTH,'center')
     elseif gameState == 'victory' then
@@ -195,14 +258,16 @@ function love.draw()
         love.graphics.printf('Press Enter to Restart!',0,42,VIRTUAL_WIDTH,'center')
     end
 
-    love.graphics.setFont(scoreFont)
-    love.graphics.print(player1Score,VIRTUAL_WIDTH / 2 - 50, VIRTUAL_HEIGHT / 3)
-    love.graphics.print(player2Score,VIRTUAL_WIDTH / 2 + 30, VIRTUAL_HEIGHT / 3)
+    if gameState == 'serve' or gameState == 'play' or gameState == 'victory' then
+        love.graphics.setFont(scoreFont)
+        love.graphics.print(player1Score,VIRTUAL_WIDTH / 2 - 50, VIRTUAL_HEIGHT / 3)
+        love.graphics.print(player2Score,VIRTUAL_WIDTH / 2 + 30, VIRTUAL_HEIGHT / 3)
 
-    paddle1:render()
-    paddle2:render()
+        paddle1:render()
+        paddle2:render()
 
-    ball:render()
+        ball:render()
+    end
 
     displayFPS()
 
@@ -210,8 +275,46 @@ function love.draw()
 end
 
 function displayFPS()
-    love.graphics.setColor(0,1,0,1)
+    love.graphics.setColor(1,1,1,1)
     love.graphics.setFont(smallFont)
     love.graphics.print('FPS: '..tostring(love.timer.getFPS()),40,20)
     love.graphics.setColor(1,1,1,1)
+end
+
+function drawMenuOptions()
+    love.graphics.setFont(instructFont)
+
+    local startX = 70
+    local y = 165
+    local spacing = 80
+
+    for i, item in ipairs(menuItems) do
+        if i == 5 then
+
+            local x = VIRTUAL_WIDTH - 50
+            local y2 = VIRTUAL_HEIGHT - 30
+
+            if selectedItem == 5 then
+                love.graphics.setColor(1, 1, 0)
+            else
+                love.graphics.setColor(1, 1, 1)
+            end
+
+            love.graphics.print(item, x, y2)
+
+        else
+            -- 1~4 
+            local x = startX + (i - 1) * spacing
+
+            if selectedItem == i then
+                love.graphics.setColor(1, 1, 0)
+            else
+                love.graphics.setColor(1, 1, 1)
+            end
+
+            love.graphics.print(item, x, y)
+        end
+    end
+
+    love.graphics.setColor(1, 1, 1)
 end
