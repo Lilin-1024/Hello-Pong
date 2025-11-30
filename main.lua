@@ -60,6 +60,7 @@ function love.load()
     --menu initialization
     gameState = 'menu'
     selectedItem = 1
+    playersConfig = 2
 
     if servingPlayer == 1 then
         ball.dx = 100
@@ -192,30 +193,46 @@ function love.keypressed(key)
                 selectedItem = 5
             end
         elseif key == 'z' then
-            print('selected '..menuItems[selectedItem])
-        elseif key == 'enter' or 'return' then
+            --submenu set
+            local item = menuItems[selectedItem]
+            if item == 'Players' then
+                gameState = 'submenu_players'
+            elseif item == 'Win Score' then
+                -- win score
+            elseif item == 'Free Mode' then
+                -- free mode
+            elseif item == 'Particles' then
+                -- particles
+            elseif item == 'Music' then
+                -- music
+            end
+            
+
+        elseif key == 'enter' or key == 'return' then
             gameState = 'serve'
         elseif key == "escape" then
             love.event.quit()
         end
-
-    end
-
-    if gameState == 'serve' then
+    elseif gameState == 'submenu_players' then
+        --submenu press
+        if key == 'left' then
+            playersConfig = 1
+        elseif key == 'right' then
+            playersConfig = 2
+        elseif key == 'z' or key == 'escape' then
+            gameState = 'menu'
+        end
+    elseif gameState == 'serve' then
         if key == 'enter' or key == 'return' then
             gameState = 'play'
         elseif key == "escape" then
             gameState = 'menu'
         end
-    end
-
-    if gameState == 'play' then
+    elseif gameState == 'play' then
         if key == "escape" then
             gameState = 'menu'
         end
-    end
-
-    if gameState == 'victory' then
+    elseif gameState == 'victory' then
         if key == 'enter' or key == 'return' then
             gameState = 'start'
             player1Score = 0
@@ -231,42 +248,12 @@ function love.draw()
 
     love.graphics.clear(40/255, 45/255, 52/255, 1)
 
-    --menu draw
-
     if gameState =='menu' then
-        --title
-        love.graphics.setFont(titleFont)
-        love.graphics.printf("100% Hello Pong!",0,50,VIRTUAL_WIDTH,'center')
-
-        love.graphics.setFont(instructFont)
-        love.graphics.printf("< Use ← → to navigate and Z to select >", 0, 90, VIRTUAL_WIDTH, "center")
-
-        --option
-        drawMenuOptions()
-
-    end
-
-    love.graphics.setFont(smallFont)
-
-    if gameState == 'serve' then
-        love.graphics.printf('Player'..tostring(servingPlayer).."'s turn!",0,20,VIRTUAL_WIDTH,'center')
-        love.graphics.printf('Press Enter to Serve!',0,32,VIRTUAL_WIDTH,'center')
-    elseif gameState == 'victory' then
-        love.graphics.setFont(victoryFont)
-        love.graphics.printf('Player'..tostring(winningPlayer).." wins!",0,10,VIRTUAL_WIDTH,'center')
-        love.graphics.setFont(smallFont)
-        love.graphics.printf('Press Enter to Restart!',0,42,VIRTUAL_WIDTH,'center')
-    end
-
-    if gameState == 'serve' or gameState == 'play' or gameState == 'victory' then
-        love.graphics.setFont(scoreFont)
-        love.graphics.print(player1Score,VIRTUAL_WIDTH / 2 - 50, VIRTUAL_HEIGHT / 3)
-        love.graphics.print(player2Score,VIRTUAL_WIDTH / 2 + 30, VIRTUAL_HEIGHT / 3)
-
-        paddle1:render()
-        paddle2:render()
-
-        ball:render()
+        drawMenu()
+    elseif gameState == 'submenu_players' then
+        drawPlayersSettings()
+    elseif gameState == 'play' or gameState == 'serve' or gameState == 'victory' then
+        drawGame()
     end
 
     displayFPS()
@@ -317,4 +304,61 @@ function drawMenuOptions()
     end
 
     love.graphics.setColor(1, 1, 1)
+end
+
+function drawMenu()
+    --title
+        love.graphics.setFont(titleFont)
+        love.graphics.printf("100% Hello Pong!",0,50,VIRTUAL_WIDTH,'center')
+
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.setFont(smallFont)
+        love.graphics.printf("< Use <- -> to navigate and Z to select >", 0, 95, VIRTUAL_WIDTH, "center")
+        love.graphics.setColor(1, 1, 1, 1)
+
+        love.graphics.setFont(smallFont)
+        love.graphics.printf("-- press enter to start --", 0, 110, VIRTUAL_WIDTH, "center")
+
+        --option
+        drawMenuOptions()
+end
+
+function drawGame()
+    love.graphics.setFont(smallFont)
+
+    if gameState == 'serve' then
+        love.graphics.printf('Player'..tostring(servingPlayer).."'s turn!",0,20,VIRTUAL_WIDTH,'center')
+        love.graphics.printf('Press Enter to Serve!',0,32,VIRTUAL_WIDTH,'center')
+    elseif gameState == 'victory' then
+        love.graphics.setFont(victoryFont)
+        love.graphics.printf('Player'..tostring(winningPlayer).." wins!",0,10,VIRTUAL_WIDTH,'center')
+        love.graphics.setFont(smallFont)
+        love.graphics.printf('Press Enter to Restart!',0,42,VIRTUAL_WIDTH,'center')
+    end
+
+    if gameState == 'serve' or gameState == 'play' or gameState == 'victory' then
+        love.graphics.setFont(scoreFont)
+        love.graphics.print(player1Score,VIRTUAL_WIDTH / 2 - 50, VIRTUAL_HEIGHT / 3)
+        love.graphics.print(player2Score,VIRTUAL_WIDTH / 2 + 30, VIRTUAL_HEIGHT / 3)
+
+        paddle1:render()
+        paddle2:render()
+
+        ball:render()
+    end
+end
+
+function drawPlayersSettings()
+    love.graphics.setColor(1,1,1,1)
+    love.graphics.setFont(instructFont)
+
+    love.graphics.printf("Select Players", 0, 40, VIRTUAL_WIDTH, "center")
+
+    local text = "Players : " .. tostring(playersConfig)
+    
+    love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
+
+    love.graphics.setColor(1, 1, 1, 0.8)
+    love.graphics.setFont(smallFont)
+    love.graphics.printf("< Use <- -> to change and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
 end
