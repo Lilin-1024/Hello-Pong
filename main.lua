@@ -11,7 +11,7 @@ WINDOW_HEIGHT = 720
 VIRTUAL_WIDTH = 432
 VIRTUAL_HEIGHT = 243
 
-PADDLE_SPEED = 200
+PADDLE_SPEED = 50
 
 menuItems = {
     "Players",
@@ -44,6 +44,8 @@ function love.load()
         ['paddle_hit'] = love.audio.newSource('sounds/paddle_hit.wav','static'),
         ['score']=love.audio.newSource('sounds/score.wav','static'),
         ['wall_hit']=love.audio.newSource('sounds/wall_hit.wav','static'),
+        ['dash']=love.audio.newSource('sounds/dash.wav','static'),
+        ['select']=love.audio.newSource('sounds/select.wav','static')
     }
 
     --initialization
@@ -52,7 +54,11 @@ function love.load()
 
     combo = 0
 
-    winScore = 2
+    winScore = 5
+
+    freeModeSet = 1
+
+    particleSet = 0
 
     winningPlayer = 0
 
@@ -65,7 +71,7 @@ function love.load()
     --menu initialization
     gameState = 'menu'
     selectedItem = 1
-    playersConfig = 1
+    playersConfig = 2
 
     if servingPlayer == 1 then
         ball.dx = 100
@@ -97,6 +103,16 @@ function love.update(dt)
     paddle1:update(dt)
     paddle2:update(dt)
 
+    if love.keyboard.isDown('lshift') then
+        paddle1:attemptSprint()
+    end
+
+    if playersConfig == 2 then
+        if love.keyboard.isDown('rshift') then
+            paddle2:attemptSprint()
+        end
+    end
+
     --player1 movement
     if love.keyboard.isDown{'w'} then
         paddle1.dy = -PADDLE_SPEED
@@ -104,6 +120,21 @@ function love.update(dt)
         paddle1.dy = PADDLE_SPEED
     else
         paddle1.dy = 0
+    end
+
+    --p1 freeMode
+    if freeModeSet == 1 then
+        if love.keyboard.isDown{'a'} then
+            paddle1.dx = -PADDLE_SPEED
+        elseif love.keyboard.isDown{'d'} then
+            paddle1.dx = PADDLE_SPEED
+        else
+            paddle1.dx = 0
+        end
+        
+        if paddle1.x >= VIRTUAL_WIDTH / 3 -paddle1.width then
+            paddle1.x = VIRTUAL_WIDTH / 3 -paddle1.width
+        end
     end
 
     --player2 movement
@@ -116,6 +147,21 @@ function love.update(dt)
         else
             paddle2.dy = 0
         end
+        --p2 freeMode
+        if freeModeSet == 1 then
+            if love.keyboard.isDown{'left'} then
+                paddle2.dx = -PADDLE_SPEED
+            elseif love.keyboard.isDown{'right'} then
+                paddle2.dx = PADDLE_SPEED
+            else
+                paddle2.dx = 0
+            end
+            
+            if paddle2.x <= VIRTUAL_WIDTH / 3 * 2 then
+                paddle2.x = VIRTUAL_WIDTH / 3 * 2
+            end
+        end
+
     elseif playersConfig == 1 then
         --AI--
         if ball.dx > 0 then
@@ -170,6 +216,12 @@ end
 
 -- state switch
 function love.keypressed(key)
+    if gameState~='serve' and gameState~='play' and gameState~='victory' then
+        if key == 'right' or key == 'left' or key == 'z' then
+            sounds['select']:stop()
+            sounds['select']:play()
+        end
+    end
 
     --menu press
     if gameState == "menu" then
@@ -191,14 +243,12 @@ function love.keypressed(key)
             elseif item == 'Win Score' then
                 gameState = 'submenu_WinScore'
             elseif item == 'Free Mode' then
-                -- free mode
+                gameState = 'submenu_FreeMode'
             elseif item == 'Particles' then
-                -- particles
+                gameState = 'submenu_particles'
             elseif item == 'Music' then
                 -- music
             end
-            
-
         elseif key == 'enter' or key == 'return' then
             gameState = 'serve'
         elseif key == "escape" then
@@ -233,6 +283,34 @@ function love.keypressed(key)
             winScore = 1
         elseif winScore < 1 then
             winScore = 7
+        end
+    elseif gameState == 'submenu_FreeMode' then
+        --submenu press
+        if key == 'left' then
+            freeModeSet = freeModeSet - 1
+        elseif key == 'right' then
+            freeModeSet = freeModeSet + 1
+        elseif key == 'z' or key == 'enter' or key == 'return' or key == 'escape' then
+            gameState = 'menu'
+        end
+        if freeModeSet > 1 then
+            freeModeSet = 0
+        elseif freeModeSet < 0 then
+            freeModeSet = 1
+        end
+    elseif gameState == 'submenu_particles' then
+        --submenu press
+        if key == 'left' then
+            particleSet = particleSet - 1
+        elseif key == 'right' then
+            particleSet = particleSet + 1
+        elseif key == 'z' or key == 'enter' or key == 'return' or key == 'escape' then
+            gameState = 'menu'
+        end
+        if particleSet > 1 then
+            particleSet = 0
+        elseif particleSet < 0 then
+            particleSet = 1
         end
     elseif gameState == 'serve' then
         if key == 'enter' or key == 'return' then
@@ -271,30 +349,23 @@ function love.draw()
         drawPlayersSettings()
     elseif gameState == 'submenu_WinScore' then
         drawWinScore()
+    elseif gameState == 'submenu_FreeMode' then
+        drawFreeMode()
+    elseif gameState == 'submenu_particles' then
+        drawParticleSet()
     elseif gameState == 'play' or gameState == 'serve' or gameState == 'victory' then
         drawGame()
     end
 
-    displayFPS()
+    --displayFPS()
 
     push:apply("end")
 end
 
 function ballCollision()
 
-    if ball:collides(paddle1) then
-        ball.dx = -ball.dx*1.2
-        ball.x = paddle1.x + ball.width
-        combo = combo + 1
-        sounds['paddle_hit']:play()
-    end
-
-    if ball:collides(paddle2) then
-        ball.dx = -ball.dx*1.2
-        ball.x = paddle2.x - ball.width
-        combo = combo + 1
-        sounds['paddle_hit']:play()
-    end
+    handleCollision(ball, paddle1)
+    handleCollision(ball, paddle2)
 
     if ball.y <= 0 then
         ball.dy = -ball.dy
@@ -315,6 +386,48 @@ function ballCollision()
         ball.dx = ballMaxSpeed
     elseif ball.dx < -ballMaxSpeed then
         ball.dx = -ballMaxSpeed
+    end
+end
+
+function handleCollision(ball, paddle)
+    if ball:collides(paddle) then
+        sounds['paddle_hit']:play()
+        combo = combo + 1
+
+        local ball_center_x = ball.x + ball.width / 2
+        local ball_center_y = ball.y + ball.height / 2
+        local paddle_center_x = paddle.x + paddle.width / 2
+        local paddle_center_y = paddle.y + paddle.height / 2
+
+        local delta_x = ball_center_x - paddle_center_x
+        local delta_y = ball_center_y - paddle_center_y
+
+        local min_dist_x = ball.width / 2 + paddle.width / 2
+        local min_dist_y = ball.height / 2 + paddle.height / 2
+
+
+        local depth_x = min_dist_x - math.abs(delta_x)
+        local depth_y = min_dist_y - math.abs(delta_y)
+
+        if depth_x < depth_y then
+
+            if delta_x < 0 then
+                ball.x = paddle.x - ball.width
+                ball.dx = -math.abs(ball.dx) * 1.2 
+            else
+                ball.x = paddle.x + paddle.width
+                ball.dx = math.abs(ball.dx) * 1.2
+            end
+        else
+
+            if delta_y < 0 then
+                ball.y = paddle.y - ball.height
+                ball.dy = -math.abs(ball.dy) * 1.05
+            else
+                ball.y = paddle.y + paddle.height
+                ball.dy = math.abs(ball.dy) * 1.05
+            end
+        end
     end
 end
 
@@ -429,7 +542,49 @@ function drawWinScore()
     love.graphics.printf("Set the Win Score", 0, 40, VIRTUAL_WIDTH, "center")
 
     local text = "Win Scores : " .. tostring(winScore)
-    
+
+    love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
+
+    love.graphics.setColor(1, 1, 1, 0.8)
+    love.graphics.setFont(smallFont)
+    love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
+end
+
+function drawFreeMode()
+    love.graphics.setColor(1,1,1,1)
+    love.graphics.setFont(instructFont)
+
+    love.graphics.printf("Enable the Free Mode", 0, 40, VIRTUAL_WIDTH, "center")
+
+    local text
+
+    if freeModeSet == 0 then
+        text = "Free Mode : OFF"
+    elseif freeModeSet == 1 then
+        text = "Free Mode : ON"
+    end
+
+    love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
+
+    love.graphics.setColor(1, 1, 1, 0.8)
+    love.graphics.setFont(smallFont)
+    love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
+end
+
+function drawParticleSet()
+    love.graphics.setColor(1,1,1,1)
+    love.graphics.setFont(instructFont)
+
+    love.graphics.printf("Enable the Particles", 0, 40, VIRTUAL_WIDTH, "center")
+
+    local text
+
+    if particleSet == 0 then
+        text = "Effect : OFF"
+    elseif particleSet == 1 then
+        text = "Effect : ON"
+    end
+
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
     love.graphics.setColor(1, 1, 1, 0.8)
