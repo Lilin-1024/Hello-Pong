@@ -95,10 +95,16 @@ end
 
 function Paddle:render()
     love.graphics.setColor(1, 1, 1, 1)
+
+    colorChange(2,3,74,166,65)
+    
         for _, p in ipairs(self.particles) do
             love.graphics.rectangle('fill', p.x, p.y, p.size, p.size)
         end        
     love.graphics.setColor(1, 1, 1, 1)
+
+    colorChange(2,3,74,166,65)
+    
 
     love.graphics.rectangle('fill',self.x,self.y,self.width,self.height)
 
@@ -124,10 +130,16 @@ function Paddle:drawCooldownUI()
     end
     
     love.graphics.setColor(0.3, 0.3, 0.3, 1)
+
+    colorChange(2,3,74,166,65)
+    
     love.graphics.circle('line', uiX, uiY, radius)
     
     if ratio > 0 then
         love.graphics.setColor(1, 1, 1, 1)
+
+        colorChange(2,3,74,166,65)
+        
         love.graphics.arc('line', 'open', uiX, uiY, radius, -math.pi/2, -math.pi/2 + (math.pi * 2 * ratio))
     end
 end

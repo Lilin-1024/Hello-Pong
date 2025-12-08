@@ -13,6 +13,15 @@ VIRTUAL_HEIGHT = 243
 
 PADDLE_SPEED = 50
 
+local MAX_BALL_SPEED_X = 550 -- 略微降低最大速度上限
+local MAX_BALL_SPEED_Y = 400
+local FRICTION_COEF = 0.25   -- 降低Y轴切球的摩擦系数 (原0.35)
+
+-- 动能传递系数：原0.4 -> 现0.15
+-- 冲刺(250) * 0.15 = 37.5 (原来是100)
+-- 加上基础反弹，这个增幅已经足够产生战术差异，但不会秒杀
+local MOMENTUM_TRANSFER = 0.15
+
 menuItems = {
     "Players",
     "Win Score",
@@ -47,9 +56,9 @@ function love.load()
         ['wall_hit']=love.audio.newSource('sounds/wall_hit.wav','static'),
         ['dash']=love.audio.newSource('sounds/dash.wav','static'),
         ['select']=love.audio.newSource('sounds/select.wav','static'),
-        ['music_track1']=love.audio.newSource('sounds/track1.ogg','static'),
-        ['music_track2']=love.audio.newSource('sounds/track2.wav','static'),
-        ['music_track3']=love.audio.newSource('sounds/track3.wav','static'),
+        ['music_track1']=love.audio.newSource('sounds/track1.mp3','static'),
+        ['music_track2']=love.audio.newSource('sounds/LuckyStar2.wav','static'),
+        ['music_track3']=love.audio.newSource('sounds/LuckyStar1.wav','static'),
     }
 
     --initialization
@@ -60,6 +69,10 @@ function love.load()
     winningPlayer = 0
 
     serveTimer = 3
+
+        -- 震动系统变量
+    shakeTimer = 0
+    shakeMagnitude = 0
 
     servingPlayer = math.random(2) == 1 and 1 or 2
 
@@ -135,6 +148,13 @@ function love.update(dt)
         updateMusicMenu(dt)
     end
 
+    if shakeTimer > 0 then
+        shakeTimer = shakeTimer - dt
+        -- 让震动幅度随时间变小 (Lerp)
+        -- 这样震动会越来越弱，直到消失，手感更好
+        shakeMagnitude = math.max(0, shakeMagnitude - 10 * dt)
+    end
+
     shaderTimer = shaderTimer + dt
     crtShader:send('time', shaderTimer)
 end
@@ -151,10 +171,17 @@ end
 function love.draw()
     push:start()
 
-    love.graphics.clear(40/255, 45/255, 52/255, 1)
-    if musicMenu.selection == 2 or musicMenu.selection == 3 then
+    love.graphics.clear(10/255, 10/255, 10/255, 1)
+    if musicMenu.selection == 2 then
+        love.graphics.clear(255/255, 255/255, 255/255, 1)
+    end
+
+    if musicMenu.selection == 3 then
         love.graphics.clear(104/255, 145/255, 227/255, 1)
     end
+
+    drawShake()
+
 
     if gameState =='menu' then
         drawMenu()
@@ -206,39 +233,64 @@ function handleCollision(ball, paddle)
     if ball:collides(paddle) then
         sounds['paddle_hit']:play()
         combo = combo + 1
+        startShake(0.4, math.abs(paddle.dx)/30) -- 震动稍微减弱一点
 
+        -- === 1. 计算 X 轴新速度 ===
+        local currentSpeedX = math.abs(ball.dx)
+        local paddleSpeedX = math.abs(paddle.dx)
+        
+        -- 【改动点】计算增加的速度
+        local addedSpeed = paddleSpeedX * MOMENTUM_TRANSFER
+        
+        -- 【平衡核心】：如果球本身已经很快了，就很难再加速
+        -- 这是一个简单的线性衰减：球速越接近 MAX，获得的加速收益越低
+        if currentSpeedX > 300 then
+            addedSpeed = addedSpeed * 0.5
+        end
+
+        -- 基础反弹倍率从 1.05 降到 1.02 (避免普通对拉时球速涨太快)
+        local newSpeedX = (currentSpeedX + addedSpeed) * 1.02
+        
+        -- 绝对硬上限
+        if newSpeedX > MAX_BALL_SPEED_X then newSpeedX = MAX_BALL_SPEED_X end
+
+        -- ... (中间的碰撞位置计算代码 ball_center_x 等等保持不变) ...
         local ball_center_x = ball.x + ball.width / 2
         local ball_center_y = ball.y + ball.height / 2
         local paddle_center_x = paddle.x + paddle.width / 2
         local paddle_center_y = paddle.y + paddle.height / 2
-
         local delta_x = ball_center_x - paddle_center_x
         local delta_y = ball_center_y - paddle_center_y
-
         local min_dist_x = ball.width / 2 + paddle.width / 2
         local min_dist_y = ball.height / 2 + paddle.height / 2
-
-
         local depth_x = min_dist_x - math.abs(delta_x)
         local depth_y = min_dist_y - math.abs(delta_y)
 
         if depth_x < depth_y then
+            -- 【侧面碰撞】
+            
+            -- === 2. Y 轴摩擦力 (削弱) ===
+            ball.dy = ball.dy + paddle.dy * FRICTION_COEF
+            
+            -- 限制 Y 轴
+            if ball.dy > MAX_BALL_SPEED_Y then ball.dy = MAX_BALL_SPEED_Y end
+            if ball.dy < -MAX_BALL_SPEED_Y then ball.dy = -MAX_BALL_SPEED_Y end
 
             if delta_x < 0 then
                 ball.x = paddle.x - ball.width
-                ball.dx = -math.abs(ball.dx) * 1.2 
+                ball.dx = -newSpeedX
             else
                 ball.x = paddle.x + paddle.width
-                ball.dx = math.abs(ball.dx) * 1.2
+                ball.dx = newSpeedX
             end
         else
-
+            -- 【顶部/底部碰撞】
             if delta_y < 0 then
                 ball.y = paddle.y - ball.height
-                ball.dy = -math.abs(ball.dy) * 1.05
+                ball.dy = -math.abs(ball.dy) * 1.02 -- 这里也降到 1.02
             else
                 ball.y = paddle.y + paddle.height
-                ball.dy = math.abs(ball.dy) * 1.05
+                ball.dy = math.abs(ball.dy) * 1.02
             end
         end
     end
@@ -261,6 +313,9 @@ function drawMenuOptions()
                 love.graphics.setColor(1, 1, 0)
             else
                 love.graphics.setColor(1, 1, 1)
+
+                colorChange(2,3,74,166,65)
+
             end
 
             love.graphics.print(item, x, y2)
@@ -273,6 +328,8 @@ function drawMenuOptions()
                 love.graphics.setColor(1, 1, 0)
             else
                 love.graphics.setColor(1, 1, 1)
+
+                colorChange(2,3,74,166,65)
             end
 
             love.graphics.print(item, x, y)
@@ -280,6 +337,8 @@ function drawMenuOptions()
     end
 
     love.graphics.setColor(1, 1, 1)
+    colorChange(2,3,74,166,65)
+
 end
 
 function drawMenu()
@@ -289,19 +348,29 @@ function drawMenu()
         
         -- 1. 先画阴影 (黑色，位置固定，或者只有微小的浮动)
         love.graphics.setColor(0, 0, 0, 0.1) -- 半透明黑色
+        
         love.graphics.printf("100% Hello Pong!", 2, 44 + offsetY, VIRTUAL_WIDTH, 'center') 
         -- offsetY * 0.2 让阴影也动一点点，模拟光照距离变化
         
         -- 2. 再画本体 (白色，大幅度浮动)
         love.graphics.setColor(1, 1, 1, 1) -- 改回白色
+
+        colorChange(2,3,74,166,65)
+        
         love.graphics.printf("100% Hello Pong!", 0, 40 + offsetY, VIRTUAL_WIDTH, 'center')
 
         ---
 
         love.graphics.setColor(1, 1, 1, 0.8)
+
+        colorChange(2,3,74,166,65)
+        
         love.graphics.setFont(smallFont)
         love.graphics.printf("< Use <- -> to navigate and Z to select >", 0, 95, VIRTUAL_WIDTH, "center")
         love.graphics.setColor(1, 1, 1, 1)
+
+        colorChange(2,3,74,166,65)
+        
 
         love.graphics.setFont(smallFont)
         love.graphics.printf("-- press enter to start --", 0, 110, VIRTUAL_WIDTH, "center")
@@ -316,6 +385,9 @@ function drawGame()
     love.graphics.print('Combo: '..tostring(combo),360,30)
 
     if gameState == 'serve' then
+        colorChange(2,3,74,166,65)
+        
+
         love.graphics.printf('Player'..tostring(servingPlayer).."'s turn!",0,20,VIRTUAL_WIDTH,'center')
 
         if autoServeSet == 1 then
@@ -358,6 +430,8 @@ function drawGame()
     end
 
     if gameState == 'serve' or gameState == 'play' or gameState == 'victory' then
+        colorChange(2,3,74,166,65)
+        
         love.graphics.setFont(scoreFont)
         love.graphics.print(player1Score,VIRTUAL_WIDTH / 2 - 50, VIRTUAL_HEIGHT / 3)
         love.graphics.print(player2Score,VIRTUAL_WIDTH / 2 + 30, VIRTUAL_HEIGHT / 3)
@@ -371,6 +445,10 @@ end
 
 function drawPlayersSettings()
     love.graphics.setColor(1,1,1,1)
+
+    colorChange(2,3,74,166,65)
+    
+
     love.graphics.setFont(instructFont)
 
     love.graphics.printf("Select Players", 0, 40, VIRTUAL_WIDTH, "center")
@@ -380,6 +458,10 @@ function drawPlayersSettings()
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
     love.graphics.setColor(1, 1, 1, 0.8)
+
+    colorChange(2,3,74,166,65)
+    
+
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to change and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
 end
@@ -388,6 +470,9 @@ function drawWinScore()
     love.graphics.setColor(1,1,1,1)
     love.graphics.setFont(instructFont)
 
+    colorChange(2,3,74,166,65)
+    
+
     love.graphics.printf("Set the Win Score", 0, 40, VIRTUAL_WIDTH, "center")
 
     local text = "Win Scores : " .. tostring(winScore)
@@ -395,6 +480,9 @@ function drawWinScore()
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
     love.graphics.setColor(1, 1, 1, 0.8)
+
+    colorChange(2,3,74,166,65)
+    
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
 end
@@ -402,6 +490,8 @@ end
 function drawFreeMode()
     love.graphics.setColor(1,1,1,1)
     love.graphics.setFont(instructFont)
+    colorChange(2,3,74,166,65)
+    
 
     love.graphics.printf("Enable the Free Mode", 0, 40, VIRTUAL_WIDTH, "center")
 
@@ -416,6 +506,9 @@ function drawFreeMode()
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
     love.graphics.setColor(1, 1, 1, 0.8)
+
+    colorChange(2,3,74,166,65)
+    
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
 end
@@ -423,6 +516,9 @@ end
 function drawServeSet()
     love.graphics.setColor(1,1,1,1)
     love.graphics.setFont(instructFont)
+
+    colorChange(2,3,74,166,65)
+    
 
     love.graphics.printf("Enable Auto Serve", 0, 40, VIRTUAL_WIDTH, "center")
 
@@ -437,6 +533,10 @@ function drawServeSet()
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
     love.graphics.setColor(1, 1, 1, 0.8)
+
+    colorChange(2,3,74,166,65)
+    
+
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
 end
@@ -588,6 +688,9 @@ function drawMusicMenu()
     
     -- 重置颜色
     love.graphics.setColor(1, 1, 1, 1)
+
+    colorChange(2,3,74,166,65)
+    
     
     -- 简单的操作提示
     love.graphics.setFont(smallFont) -- 记得确保你定义了字体，没有就删掉这行
@@ -837,4 +940,25 @@ function menuPress(key)
             gameState = 'menu'
         end
     end
+end
+
+function colorChange(selection,r,g,b,t)
+    if musicMenu.selection == selection then
+        love.graphics.setColor(r/255, g/255, b/255, t/100)
+    end
+end
+
+function startShake(duration, magnitude)
+    shakeTimer = duration or 0.2 -- 默认震动0.2秒
+    shakeMagnitude = magnitude or 5 -- 默认震动幅度5像素
+end
+
+function drawShake()
+    if shakeTimer > 0 then
+            -- 在 X 和 Y 轴上随机偏移一个 (-magnitude, magnitude) 之间的值
+            -- 比如幅度是 3，就会在 -3 到 3 之间随机跳动
+            local dx = math.random(-shakeMagnitude, shakeMagnitude)
+            local dy = math.random(-shakeMagnitude, shakeMagnitude)
+            love.graphics.translate(dx, dy)
+        end
 end

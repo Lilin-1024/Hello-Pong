@@ -39,6 +39,17 @@ end
 function Ball:update(dt)
     self.x = self.x + self.dx * dt
     self.y = self.y + self.dy * dt
+
+    local drag = 1.0 - (0.3 * dt) -- 0.3 是阻力系数，越大球减速越快
+    
+    -- 只有当球速大于基础速度(比如100)时才减速，防止球停下来
+    if math.abs(self.dx) > 100 then
+        self.dx = self.dx * drag
+    end
+    
+    if math.abs(self.dy) > 50 then
+        self.dy = self.dy * drag
+    end
 end
 
 function Ball:render()
