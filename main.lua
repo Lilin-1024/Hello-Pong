@@ -17,7 +17,7 @@ menuItems = {
     "Players",
     "Win Score",
     "Free Mode",
-    "Particles",
+    "AutoServe",
     "Music"
 }
 
@@ -33,6 +33,8 @@ function love.load()
 
     smallFont = love.graphics.newFont("fonts/font.ttf", 8)
 
+    largeFont = love.graphics.newFont("fonts/font.ttf", 32)
+
     titleFont = love.graphics.newFont("fonts/ari_w9500/ari-w9500-condensed-display.ttf", 32)
 
     scoreFont = love.graphics.newFont("fonts/font.ttf", 32)
@@ -45,9 +47,9 @@ function love.load()
         ['wall_hit']=love.audio.newSource('sounds/wall_hit.wav','static'),
         ['dash']=love.audio.newSource('sounds/dash.wav','static'),
         ['select']=love.audio.newSource('sounds/select.wav','static'),
-        ['music_track1']=love.audio.newSource('sounds/track1.flac','static'),
-        ['music_track2']=love.audio.newSource('sounds/track2.flac','static'),
-        ['music_track3']=love.audio.newSource('sounds/track3.flac','static'),
+        ['music_track1']=love.audio.newSource('sounds/track1.ogg','static'),
+        ['music_track2']=love.audio.newSource('sounds/track2.wav','static'),
+        ['music_track3']=love.audio.newSource('sounds/track3.wav','static'),
     }
 
     --initialization
@@ -55,14 +57,9 @@ function love.load()
     player2Score = 0
 
     combo = 0
-
-    winScore = 5
-
-    freeModeSet = 1
-
-    particleSet = 1
-
     winningPlayer = 0
+
+    serveTimer = 3
 
     servingPlayer = math.random(2) == 1 and 1 or 2
 
@@ -74,6 +71,9 @@ function love.load()
     gameState = 'menu'
     selectedItem = 1
     playersConfig = 2
+    winScore = 5
+    freeModeSet = 1
+    autoServeSet = 1
 
     if servingPlayer == 1 then
         ball.dx = 100
@@ -126,7 +126,6 @@ function love.update(dt)
         end
     end
 
-    --player1 movement
     playerMovement()
 
     --score
@@ -153,6 +152,9 @@ function love.draw()
     push:start()
 
     love.graphics.clear(40/255, 45/255, 52/255, 1)
+    if musicMenu.selection == 2 or musicMenu.selection == 3 then
+        love.graphics.clear(104/255, 145/255, 227/255, 1)
+    end
 
     if gameState =='menu' then
         drawMenu()
@@ -162,8 +164,8 @@ function love.draw()
         drawWinScore()
     elseif gameState == 'submenu_FreeMode' then
         drawFreeMode()
-    elseif gameState == 'submenu_particles' then
-        drawParticleSet()
+    elseif gameState == 'submenu_autoServe' then
+        drawServeSet()
     elseif gameState == 'music_select' then
         drawMusicMenu()
     elseif gameState == 'play' or gameState == 'serve' or gameState == 'victory' then
@@ -281,9 +283,20 @@ function drawMenuOptions()
 end
 
 function drawMenu()
-    --title
+        local offsetY = math.sin(love.timer.getTime() * 3) * 3
+
         love.graphics.setFont(titleFont)
-        love.graphics.printf("100% Hello Pong!",0,50,VIRTUAL_WIDTH,'center')
+        
+        -- 1. 先画阴影 (黑色，位置固定，或者只有微小的浮动)
+        love.graphics.setColor(0, 0, 0, 0.1) -- 半透明黑色
+        love.graphics.printf("100% Hello Pong!", 2, 44 + offsetY, VIRTUAL_WIDTH, 'center') 
+        -- offsetY * 0.2 让阴影也动一点点，模拟光照距离变化
+        
+        -- 2. 再画本体 (白色，大幅度浮动)
+        love.graphics.setColor(1, 1, 1, 1) -- 改回白色
+        love.graphics.printf("100% Hello Pong!", 0, 40 + offsetY, VIRTUAL_WIDTH, 'center')
+
+        ---
 
         love.graphics.setColor(1, 1, 1, 0.8)
         love.graphics.setFont(smallFont)
@@ -304,7 +317,39 @@ function drawGame()
 
     if gameState == 'serve' then
         love.graphics.printf('Player'..tostring(servingPlayer).."'s turn!",0,20,VIRTUAL_WIDTH,'center')
-        love.graphics.printf('Press Enter to Serve!',0,32,VIRTUAL_WIDTH,'center')
+
+        if autoServeSet == 1 then
+            local secondsLeft = math.ceil(serveTimer)
+            if secondsLeft < 1 then secondsLeft = 1 end
+
+            -- 【修改点 1：让它一开始变得更大】
+            -- 原来是 * 0.5，现在改成 * 2.0 甚至更大
+            -- 逻辑：(serveTimer % 1) 是 0.99，乘以 2.0 等于 1.98
+            -- 最终 zoom = 1 + 1.98 ≈ 3倍大小
+            local zoom = 1 + (serveTimer % 1) * 1
+
+            love.graphics.setFont(largeFont)
+            local text = tostring(secondsLeft)
+            local textW = largeFont:getWidth(text)
+            local textH = largeFont:getHeight()
+
+            -- 【修改点 2：位置上移】
+            -- VIRTUAL_HEIGHT / 2 是正中心
+            -- 减去 50 (或者更多) 就会往上跑
+            local drawY = VIRTUAL_HEIGHT / 2 - 50
+
+            love.graphics.print(text, 
+                VIRTUAL_WIDTH / 2,  -- X轴还在中间
+                drawY,              -- Y轴往上移了
+                0,
+                zoom, zoom, 
+                textW / 2, textH / 2)
+            
+            love.graphics.setFont(smallFont)
+        else
+            love.graphics.printf('Press Enter to Serve!', 0, 32, VIRTUAL_WIDTH, 'center')
+        end
+
     elseif gameState == 'victory' then
         love.graphics.setFont(victoryFont)
         love.graphics.printf('Player'..tostring(winningPlayer).." wins!",0,10,VIRTUAL_WIDTH,'center')
@@ -375,18 +420,18 @@ function drawFreeMode()
     love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
 end
 
-function drawParticleSet()
+function drawServeSet()
     love.graphics.setColor(1,1,1,1)
     love.graphics.setFont(instructFont)
 
-    love.graphics.printf("Enable the Particles", 0, 40, VIRTUAL_WIDTH, "center")
+    love.graphics.printf("Enable Auto Serve", 0, 40, VIRTUAL_WIDTH, "center")
 
     local text
 
-    if particleSet == 0 then
-        text = "Effect : OFF"
-    elseif particleSet == 1 then
-        text = "Effect : ON"
+    if autoServeSet == 0 then
+        text = "Auto Serve : OFF"
+    elseif autoServeSet == 1 then
+        text = "Auto Serve: ON"
     end
 
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
@@ -410,7 +455,7 @@ function loadMusicMenu()
         -- 这里定义你的专辑列表
         items = {
             {
-                name = "Stupid Bird",
+                name = "Default",
                 cover = love.graphics.newImage('sprites/cover1.png'), -- 替换你的图片路径
                 music = sounds['music_track1'], -- 替换你的音乐变量
                 -- 下面是用于动画的动态变量
@@ -420,7 +465,7 @@ function loadMusicMenu()
                 alpha = 1
             },
             {
-                name = "Stupid Bird",
+                name = "LuckyStar!!!",
                 cover = love.graphics.newImage('sprites/cover2.png'),
                 music = sounds['music_track2'],
                 x = VIRTUAL_WIDTH / 2 + 110, -- 初始位置稍微错开一点
@@ -429,7 +474,7 @@ function loadMusicMenu()
                 alpha = 0.5
             },
             {
-                name = "Stupid Bird",
+                name = "LuckyStar!!!",
                 cover = love.graphics.newImage('sprites/cover3.png'),
                 music = sounds['music_track3'],
                 x = VIRTUAL_WIDTH / 2 + 220,
@@ -600,6 +645,7 @@ function playerMovement()
 
     elseif playersConfig == 1 then
         --AI--
+        paddle2.x = VIRTUAL_WIDTH - 10
         if ball.dx > 0 then
             local diff = ball.y - paddle2.y - paddle2.height / 2
             paddle2.dy = diff * 10
@@ -614,6 +660,18 @@ function playerMovement()
 end
 
 function scoreUpdate(dt)
+
+    if gameState == 'serve' then
+        if autoServeSet == 1 then
+            serveTimer = serveTimer - dt
+            if serveTimer < 0 then
+                gameState = 'play'
+                combo = 0
+                serveTimer = 3
+            end
+        end
+    end
+
     if gameState == "play" then
         ball:update(dt)
         if ball.x < 0 then
@@ -629,6 +687,7 @@ function scoreUpdate(dt)
                 winningPlayer = 2
             else
                 gameState = 'serve'
+                serveTimer = 3
             end
         end
 
@@ -644,6 +703,7 @@ function scoreUpdate(dt)
                 winningPlayer = 1
             else
                 gameState = 'serve'
+                serveTimer = 3
             end
         end
     end
@@ -679,8 +739,8 @@ function menuPress(key)
                 gameState = 'submenu_WinScore'
             elseif item == 'Free Mode' then
                 gameState = 'submenu_FreeMode'
-            elseif item == 'Particles' then
-                gameState = 'submenu_particles'
+            elseif item == 'AutoServe' then
+                gameState = 'submenu_autoServe'
             elseif item == 'Music' then
                 gameState = 'music_select'
             end
@@ -733,19 +793,19 @@ function menuPress(key)
         elseif freeModeSet < 0 then
             freeModeSet = 1
         end
-    elseif gameState == 'submenu_particles' then
+    elseif gameState == 'submenu_autoServe' then
         --submenu press
         if key == 'left' then
-            particleSet = particleSet - 1
+            autoServeSet = autoServeSet - 1
         elseif key == 'right' then
-            particleSet = particleSet + 1
+            autoServeSet = autoServeSet + 1
         elseif key == 'z' or key == 'enter' or key == 'return' or key == 'escape' then
             gameState = 'menu'
         end
-        if particleSet > 1 then
-            particleSet = 0
-        elseif particleSet < 0 then
-            particleSet = 1
+        if autoServeSet > 1 then
+            autoServeSet = 0
+        elseif autoServeSet < 0 then
+            autoServeSet = 1
         end
     elseif gameState == 'music_select' then
         musicMenuKeyPressed(key)

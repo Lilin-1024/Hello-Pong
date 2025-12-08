@@ -94,12 +94,10 @@ function Paddle:spawnParticle()
 end
 
 function Paddle:render()
-    if particleSet == 1 then
-            love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(1, 1, 1, 1)
         for _, p in ipairs(self.particles) do
             love.graphics.rectangle('fill', p.x, p.y, p.size, p.size)
-        end
-    end
+        end        
     love.graphics.setColor(1, 1, 1, 1)
 
     love.graphics.rectangle('fill',self.x,self.y,self.width,self.height)
