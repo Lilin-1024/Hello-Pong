@@ -13,14 +13,10 @@ VIRTUAL_HEIGHT = 243
 
 PADDLE_SPEED = 50
 
-local MAX_BALL_SPEED_X = 550 -- 略微降低最大速度上限
-local MAX_BALL_SPEED_Y = 400
-local FRICTION_COEF = 0.25   -- 降低Y轴切球的摩擦系数 (原0.35)
-
--- 动能传递系数：原0.4 -> 现0.15
--- 冲刺(250) * 0.15 = 37.5 (原来是100)
--- 加上基础反弹，这个增幅已经足够产生战术差异，但不会秒杀
-local MOMENTUM_TRANSFER = 0.15
+local MAX_BALL_SPEED_X = 1400
+local MAX_BALL_SPEED_Y = 800
+local FRICTION_COEF = 1
+local BASE_PUSH = 3
 
 menuItems = {
     "Players",
@@ -230,67 +226,86 @@ function ballCollision()
 end
 
 function handleCollision(ball, paddle)
+    -- 1. 冷却检测 (CD可以稍微缩短一点点，适应更快的节奏)
+    if ball.collisionTimer > 0 then return end
+
     if ball:collides(paddle) then
+        ball.collisionTimer = 0.3 -- CD 缩短到 0.15秒，反应更灵敏
         sounds['paddle_hit']:play()
         combo = combo + 1
-        startShake(0.4, math.abs(paddle.dx)/30) -- 震动稍微减弱一点
+        
+        -- 震动：根据球速和板子速度共同决定，越快震得越猛
+        local shakePower = (math.abs(ball.dx) + math.abs(paddle.dx)) / 1000
+        startShake(0.5, math.min(shakePower * 10, 8)) -- 震动幅度上限设为8
 
-        -- === 1. 计算 X 轴新速度 ===
+        -- === 2. 速度计算 (Insane Mode) ===
         local currentSpeedX = math.abs(ball.dx)
         local paddleSpeedX = math.abs(paddle.dx)
         
-        -- 【改动点】计算增加的速度
-        local addedSpeed = paddleSpeedX * MOMENTUM_TRANSFER
+        -- 基础倍率：1.08 (球会越来越快，压迫感极强)
+        local baseMultiplier = 1.08
         
-        -- 【平衡核心】：如果球本身已经很快了，就很难再加速
-        -- 这是一个简单的线性衰减：球速越接近 MAX，获得的加速收益越低
-        if currentSpeedX > 300 then
-            addedSpeed = addedSpeed * 0.5
+        -- 动能传递：提升到 0.5 (板子一半的速度直接加给球)
+        -- 冲刺(250) * 0.5 = 125。
+        local momentumBonus = paddleSpeedX * 1.5
+
+        -- 软上限逻辑放宽：让球能更容易飙到 1000 以上
+        if currentSpeedX > 1000 then
+            momentumBonus = momentumBonus * 0.5
+            baseMultiplier = 1.04
         end
 
-        -- 基础反弹倍率从 1.05 降到 1.02 (避免普通对拉时球速涨太快)
-        local newSpeedX = (currentSpeedX + addedSpeed) * 1.02
+        local newSpeedX = currentSpeedX * baseMultiplier + momentumBonus
         
         -- 绝对硬上限
         if newSpeedX > MAX_BALL_SPEED_X then newSpeedX = MAX_BALL_SPEED_X end
+        if newSpeedX < 200 then newSpeedX = 200 end -- 最低速度也提高了
 
-        -- ... (中间的碰撞位置计算代码 ball_center_x 等等保持不变) ...
+        -- === 3. 物理修正 (引入动态推力) ===
         local ball_center_x = ball.x + ball.width / 2
-        local ball_center_y = ball.y + ball.height / 2
         local paddle_center_x = paddle.x + paddle.width / 2
-        local paddle_center_y = paddle.y + paddle.height / 2
         local delta_x = ball_center_x - paddle_center_x
-        local delta_y = ball_center_y - paddle_center_y
+        
+        -- 重新计算 depth 用于判断方向
         local min_dist_x = ball.width / 2 + paddle.width / 2
         local min_dist_y = ball.height / 2 + paddle.height / 2
         local depth_x = min_dist_x - math.abs(delta_x)
-        local depth_y = min_dist_y - math.abs(delta_y)
+        local depth_y = min_dist_y - math.abs(ball.y + ball.height/2 - (paddle.y + paddle.height/2))
 
         if depth_x < depth_y then
             -- 【侧面碰撞】
             
-            -- === 2. Y 轴摩擦力 (削弱) ===
+            -- Y轴切球 (保持不变)
             ball.dy = ball.dy + paddle.dy * FRICTION_COEF
-            
-            -- 限制 Y 轴
             if ball.dy > MAX_BALL_SPEED_Y then ball.dy = MAX_BALL_SPEED_Y end
             if ball.dy < -MAX_BALL_SPEED_Y then ball.dy = -MAX_BALL_SPEED_Y end
 
+            -- === 【关键逻辑：计算动态安全距离】 ===
+            -- 基础距离 5px + 板子速度的 8%
+            -- 如果冲刺(250)，会额外多推 20px (总共25px)。
+            -- 这能确保板子绝对追不上球，彻底杜绝隧道效应。
+            local dynamicBuffer = BASE_PUSH + (paddleSpeedX * 0.08)
+
             if delta_x < 0 then
-                ball.x = paddle.x - ball.width
+                -- 球在左边
+                -- 如果板子正在向左猛冲 (paddle.dx < 0)，说明是追尾或者迎头痛击
+                -- 此时 dynamicBuffer 会很大，把球弹得远远的
+                ball.x = paddle.x - ball.width - dynamicBuffer
                 ball.dx = -newSpeedX
             else
-                ball.x = paddle.x + paddle.width
+                -- 球在右边
+                ball.x = paddle.x + paddle.width + dynamicBuffer
                 ball.dx = newSpeedX
             end
         else
             -- 【顶部/底部碰撞】
-            if delta_y < 0 then
-                ball.y = paddle.y - ball.height
-                ball.dy = -math.abs(ball.dy) * 1.02 -- 这里也降到 1.02
+            local pushY = BASE_PUSH + math.abs(paddle.dy) * 0.05
+            if ball.y < paddle.y then
+                ball.y = paddle.y - ball.height - pushY
+                ball.dy = -math.abs(ball.dy) * 1.05
             else
-                ball.y = paddle.y + paddle.height
-                ball.dy = math.abs(ball.dy) * 1.02
+                ball.y = paddle.y + paddle.height + pushY
+                ball.dy = math.abs(ball.dy) * 1.05
             end
         end
     end

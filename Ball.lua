@@ -10,6 +10,8 @@ function Ball:init(x,y,width,height)
 
     self.dx = math.random(2) == 1 and -100 or 100
     self.dy = math.random(-50, 50)
+
+    self.collisionTimer = 0
 end
 
 function Ball:collides(box)
@@ -29,14 +31,15 @@ function Ball:reset()
     self.y = VIRTUAL_HEIGHT / 2 - 2
 
     self.dx = math.random(2) == 1 and -150 or 150
-    if math.random() < 0.5 then
-        self.dy = math.random(-80, -20)
-    else
-        self.dy = math.random(20, 80)
-    end
+    self.dy = math.random(-80, 80)
 end
 
 function Ball:update(dt)
+
+    if self.collisionTimer > 0 then
+        self.collisionTimer = self.collisionTimer - dt
+    end
+    
     self.x = self.x + self.dx * dt
     self.y = self.y + self.dy * dt
 

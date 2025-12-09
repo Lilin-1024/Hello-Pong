@@ -50,7 +50,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords)
 
     // 扫描线 (Scanlines)
     // 使用 inputSize.y (虚拟高度) 来计算扫描线密度
-    float scans = clamp(0.35 + 0.35 * sin(2 * time + uv.y * inputSize.y * 1), 0.0, 1.0);
+    float scans = clamp(0.35 + 0.35 * sin(2 * time + uv.y * inputSize.y * 0.5), 0.0, 1.0);
     float s = pow(scans, 1.7);
     col = col * vec3(0.6 + 0.4 * s);
 
