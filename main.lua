@@ -1,6 +1,7 @@
 ---@diagnostic disable: lowercase-global
 Class = require "class"
 push = require "push"
+Background = require 'background'
 
 require "Ball"
 require "Paddle"
@@ -30,6 +31,8 @@ menuItems = {
 function love.load()
     math.randomseed(os.time())
 
+    Background.load()
+
     love.graphics.setDefaultFilter("nearest", "nearest")
 
     love.window.setTitle('Pong')
@@ -52,7 +55,8 @@ function love.load()
         ['wall_hit']=love.audio.newSource('sounds/wall_hit.wav','static'),
         ['dash']=love.audio.newSource('sounds/dash.wav','static'),
         ['select']=love.audio.newSource('sounds/select.wav','static'),
-        ['music_track1']=love.audio.newSource('sounds/track1.mp3','static'),
+        ['pause']=love.audio.newSource('sounds/select.wav','static'),
+        ['music_track1']=love.audio.newSource('sounds/Resonance.wav','static'),
         ['music_track2']=love.audio.newSource('sounds/LuckyStar2.wav','static'),
         ['music_track3']=love.audio.newSource('sounds/LuckyStar1.wav','static'),
     }
@@ -65,6 +69,10 @@ function love.load()
     winningPlayer = 0
 
     serveTimer = 3
+
+    pauseSelection = 1
+
+    quitSelection = 2
 
         -- 震动系统变量
     shakeTimer = 0
@@ -119,19 +127,33 @@ function love.resize(w,h)
 end
 
 function love.update(dt)
+    shaderTimer = shaderTimer + dt
+    crtShader:send('time', shaderTimer)
+    Background.update(dt)
+
+    if gameState == 'music_select' then
+        updateMusicMenu(dt)
+    end
+
+    if gameState == 'pause' then
+        return
+    end
+    --暂停拦截
 
     ballCollision()
 
     paddle1:update(dt)
     paddle2:update(dt)
 
-    if love.keyboard.isDown('lshift') then
-        paddle1:attemptSprint()
-    end
+    if gameState == 'play' or gameState == 'serve' then
+        if love.keyboard.isDown('lshift') then
+            paddle1:attemptSprint()
+        end
 
-    if playersConfig == 2 then
-        if love.keyboard.isDown('rshift') then
-            paddle2:attemptSprint()
+        if playersConfig == 2 then
+            if love.keyboard.isDown('rshift') then
+                paddle2:attemptSprint()
+            end
         end
     end
 
@@ -140,18 +162,13 @@ function love.update(dt)
     --score
     scoreUpdate(dt)
 
-    if gameState == 'music_select' then
-        updateMusicMenu(dt)
-    end
-
     if shakeTimer > 0 then
         shakeTimer = shakeTimer - dt
         -- 让震动幅度随时间变小
         shakeMagnitude = math.max(0, shakeMagnitude - 10 * dt)
     end
 
-    shaderTimer = shaderTimer + dt
-    crtShader:send('time', shaderTimer)
+    
 end
 
 
@@ -166,7 +183,7 @@ end
 function love.draw()
     push:start()
 
-    love.graphics.clear(10/255, 10/255, 10/255, 1)
+    love.graphics.clear(20/255, 20/255, 35/255, 1)
     if musicMenu.selection == 2 then
         love.graphics.clear(255/255, 255/255, 255/255, 1)
     end
@@ -178,7 +195,7 @@ function love.draw()
     drawShake()
 
 
-    if gameState =='menu' then
+    if gameState =='menu' or gameState =='exit' then
         drawMenu()
     elseif gameState == 'submenu_players' then
         drawPlayersSettings()
@@ -190,7 +207,7 @@ function love.draw()
         drawServeSet()
     elseif gameState == 'music_select' then
         drawMusicMenu()
-    elseif gameState == 'play' or gameState == 'serve' or gameState == 'victory' then
+    elseif gameState == 'play' or gameState == 'serve' or gameState == 'victory'or gameState == 'pause' then
         drawGame()
     end
 
@@ -350,44 +367,93 @@ function drawMenuOptions()
 end
 
 function drawMenu()
-        local offsetY = math.sin(love.timer.getTime() * 3) * 3
+    Background.draw()
+    
+    local offsetY = math.sin(love.timer.getTime() * 3) * 3
 
-        love.graphics.setFont(titleFont)
+    love.graphics.setFont(titleFont)
+
+    -- 阴影
+    love.graphics.setColor(0, 0, 0, 0.1)
+
+    love.graphics.printf("100% Hello Pong!", 2, 44 + offsetY, VIRTUAL_WIDTH, 'center') 
         
-        -- 阴影
-        love.graphics.setColor(0, 0, 0, 0.1)
+    --本体
+    love.graphics.setColor(1, 1, 1, 1)
+
+    colorChange(2,3,74,166,65)
         
-        love.graphics.printf("100% Hello Pong!", 2, 44 + offsetY, VIRTUAL_WIDTH, 'center') 
+    love.graphics.printf("100% Hello Pong!", 0, 40 + offsetY, VIRTUAL_WIDTH, 'center')
+
+    love.graphics.setColor(1, 1, 1, 0.8)
+
+    colorChange(2,3,74,166,65)
         
-        --本体
+    love.graphics.setFont(smallFont)
+    love.graphics.printf("< Use <- -> to navigate and Z to select >", 0, 95,VIRTUAL_WIDTH, "center")
+    love.graphics.setColor(1, 1, 1, 1)
+
+    colorChange(2,3,74,166,65)
+        
+
+    love.graphics.setFont(smallFont)
+    love.graphics.printf("-- press enter to start --", 0, 110, VIRTUAL_WIDTH, "center")
+
+    --option
+    drawMenuOptions()
+
+    if gameState == 'exit' then
+        -- 黑色遮罩
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.rectangle('fill', 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
+
+        local boxWidth = 40
+        local boxHeight = 40
+        local boxX = VIRTUAL_WIDTH / 2 - boxWidth / 2
+        local boxY = VIRTUAL_HEIGHT / 2 - boxHeight / 2
+
+        -- 背景
         love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.rectangle('fill', boxX, boxY, boxWidth, boxHeight)
+            
+        love.graphics.setColor(0, 0, 0, 1)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle('line', boxX, boxY, boxWidth, boxHeight)
 
-        colorChange(2,3,74,166,65)
-        
-        love.graphics.printf("100% Hello Pong!", 0, 40 + offsetY, VIRTUAL_WIDTH, 'center')
-
-        love.graphics.setColor(1, 1, 1, 0.8)
-
-        colorChange(2,3,74,166,65)
-        
         love.graphics.setFont(smallFont)
-        love.graphics.printf("< Use <- -> to navigate and Z to select >", 0, 95, VIRTUAL_WIDTH, "center")
         love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf("  QUIT GAME ?", 0, boxY + boxHeight + 5, VIRTUAL_WIDTH, 'center')
 
-        colorChange(2,3,74,166,65)
-        
+        local textY_Yes = boxY + boxHeight / 2 - 10
+        local textY_No = boxY + boxHeight / 2 + 5
 
-        love.graphics.setFont(smallFont)
-        love.graphics.printf("-- press enter to start --", 0, 110, VIRTUAL_WIDTH, "center")
+        if quitSelection == 1 then
+            love.graphics.setColor(0, 0, 0, 1)
+            love.graphics.printf("> YES", 0, textY_Yes, VIRTUAL_WIDTH, 'center')
+        else
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.printf("  YES", 0, textY_Yes, VIRTUAL_WIDTH,'center')
+        end
 
-        --option
-        drawMenuOptions()
+        if quitSelection == 2 then
+            love.graphics.setColor(0, 0, 0, 1)
+            love.graphics.printf("> NO", 0, textY_No, VIRTUAL_WIDTH,'center')
+        else
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.printf("  NO", 0, textY_No, VIRTUAL_WIDTH,'center')
+        end
+    end
 end
 
 function drawGame()
     love.graphics.setFont(smallFont)
 
     love.graphics.print('Combo: '..tostring(combo),360,30)
+
+    love.graphics.setColor(1, 1, 1, 0.2)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(VIRTUAL_WIDTH / 2, 0, VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT)
+    love.graphics.setColor(1, 1, 1, 1)
 
     if gameState == 'serve' then
         colorChange(2,3,74,166,65)
@@ -410,11 +476,11 @@ function drawGame()
 
             local drawY = VIRTUAL_HEIGHT / 2 - 50
 
-            love.graphics.print(text, 
+            love.graphics.print(text,
                 VIRTUAL_WIDTH / 2,
                 drawY,
                 0,
-                zoom, zoom, 
+                zoom, zoom,
                 textW / 2, textH / 2)
             
             love.graphics.setFont(smallFont)
@@ -430,7 +496,7 @@ function drawGame()
         love.graphics.printf('Press Enter to Restart!',0,42,VIRTUAL_WIDTH,'center')
     end
 
-    if gameState == 'serve' or gameState == 'play' or gameState == 'victory' then
+    if gameState == 'serve' or gameState == 'play' or gameState == 'victory' or gameState == 'pause' then
         colorChange(2,3,74,166,65)
         
         love.graphics.setFont(scoreFont)
@@ -441,6 +507,53 @@ function drawGame()
         paddle2:render()
 
         ball:render()
+    end
+    
+    --暂停菜单
+    if gameState == 'pause' then
+        -- 黑色遮罩
+        love.graphics.setColor(0, 0, 0, 0.5)
+        love.graphics.rectangle('fill', 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
+
+        local boxWidth = 90
+        local boxHeight = 80
+        local boxX = VIRTUAL_WIDTH / 2 - boxWidth / 2
+        local boxY = VIRTUAL_HEIGHT / 2 - boxHeight / 2
+
+        love.graphics.setColor(1, 1, 1, 1) -- 背景
+        love.graphics.rectangle('fill', boxX, boxY, boxWidth, boxHeight)
+        
+        love.graphics.setColor(0, 0, 0, 1) -- 边框
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle('line', boxX, boxY, boxWidth, boxHeight)
+
+        love.graphics.setFont(smallFont)
+
+        local textX = boxX
+        local textY_Resume = boxY + 20
+        local textY_Menu = boxY + 50
+
+        -- 绘制 "RESUME"
+        if pauseSelection == 1 then
+            love.graphics.setColor(0, 0, 0, 1)
+            love.graphics.print("> RESUME", textX + 20, textY_Resume)
+        else
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.print("  RESUME", textX + 20, textY_Resume)
+        end
+
+        -- 绘制 "MENU"
+        if pauseSelection == 2 then
+            love.graphics.setColor(0, 0, 0, 1)
+            love.graphics.print("> MENU", textX + 20, textY_Menu)
+        else
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.print("  MENU", textX + 20, textY_Menu)
+        end
+        
+        -- 暂停标题
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf("PAUSED", 0, boxY - 10, VIRTUAL_WIDTH, 'center')
     end
 end
 
@@ -556,7 +669,7 @@ function loadMusicMenu()
         -- 定义列表
         items = {
             {
-                name = "Default",
+                name = "Resonance",
                 cover = love.graphics.newImage('sprites/cover1.png'), 
                 music = sounds['music_track1'], 
                 x = VIRTUAL_WIDTH / 2,
@@ -622,7 +735,7 @@ function updateMusicMenu(dt)
             targetAlpha = 1.0
         end
         
-        -- 5. 平滑应用缩放和亮度
+        -- 平滑应用缩放和亮度
         item.scale = lerp(item.scale, targetScale, 10 * dt)
         item.alpha = lerp(item.alpha, targetAlpha, 10 * dt)
     end
@@ -806,7 +919,7 @@ end
 
 function pressAudio(key)
     if gameState~='serve' and gameState~='play' and gameState~='victory' then
-        if key == 'right' or key == 'left' or key == 'z' then
+        if key == 'right' or key == 'left' or key == 'z' or key == 'w' or key == 's' or key == 'up' or key=='down' or key == 'a' or key == 'd' then
             sounds['select']:stop()
             sounds['select']:play()
         end
@@ -815,12 +928,16 @@ end
 
 function menuPress(key)
     if gameState == "menu" then
-        if key == "right" then
+        if key == 'escape' then
+            gameState = 'exit'
+            quitSelection = 2
+            sounds['pause']:play()
+        elseif key == "right" or key == 'd' or key == 's' or key =='down' then
             selectedItem = selectedItem + 1
             if selectedItem > 5 then
                 selectedItem = 1
             end
-        elseif key == "left" then
+        elseif key == "left" or key == 'a' or key == 'w' or key == 'up' then
             selectedItem = selectedItem - 1
             if selectedItem < 1 then
                 selectedItem = 5
@@ -841,8 +958,8 @@ function menuPress(key)
             end
         elseif key == 'enter' or key == 'return' then
             gameState = 'serve'
-        elseif key == "escape" then
-            love.event.quit()
+            player1Score = 0
+            player2Score = 0
         end
 
     elseif gameState == 'submenu_players' then
@@ -909,18 +1026,52 @@ function menuPress(key)
             gameState = 'play'
             combo = 0
         elseif key == "escape" then
-            gameState = 'menu'
-            player1Score = 0
-            player2Score = 0
-            combo = 0
+            nowState = 0
+            gameState = 'pause'
+            pauseSelection = 1
+            sounds['pause']:play()
         end
     elseif gameState == 'play' then
         if key == "escape" then
-            gameState = 'menu'
-            ball:reset()
-            player1Score = 0
-            player2Score = 0
-            combo = 0
+            nowState = 1
+            gameState = 'pause'
+            pauseSelection = 1
+            sounds['pause']:play()
+        end
+        -- pause menu
+    elseif gameState == 'pause' then
+        if key == 'escape' then
+            if nowState == 1 then
+                gameState = 'play'
+            elseif nowState == 0 then
+                gameState = 'serve'
+            elseif nowState == 2 then
+                gameState = 'victory'
+            end
+        elseif key == 'up' or key == 'left' or key == 'w' or key == 'a' then
+            if pauseSelection == 2 then
+                pauseSelection = 1
+            end
+        elseif key == 'down' or key == 'right' or key == 's' or key == 'd' then
+            if pauseSelection == 1 then
+                pauseSelection = 2
+            end
+        elseif key == 'z' or key == 'enter' or key == 'return' then
+            if pauseSelection == 1 then
+                if nowState == 1 then
+                    gameState = 'play'
+                elseif nowState == 0 then
+                    gameState = 'serve'
+                elseif nowState == 2 then
+                    gameState = 'victory'
+                end
+            else
+                gameState = 'menu'
+                ball:reset()
+                player1Score = 0
+                player2Score = 0
+                combo = 0
+            end
         end
     elseif gameState == 'victory' then
         if key == 'enter' or key == 'return' then
@@ -929,7 +1080,29 @@ function menuPress(key)
             player2Score = 0
             combo = 0
         elseif key == "escape" then
+            nowState = 2
+            gameState = 'pause'
+            pauseSelection = 1
+            sounds['pause']:play()
+        end
+    elseif gameState == 'exit' then
+        if key == 'escape' then
             gameState = 'menu'
+            sounds['select']:play()
+        elseif key == 'up' or key == 'left' or key == 'w' or key == 'a' then
+            if quitSelection == 2 then
+                quitSelection = 1
+            end
+        elseif key == 'down' or key == 'right' or key == 's' or key == 'd' then
+            if quitSelection == 1 then
+                quitSelection = 2
+            end
+        elseif key == 'z' or key == 'enter' or key == 'return' then
+            if quitSelection == 1 then
+                love.event.quit()
+            else
+                gameState = 'menu'
+            end
         end
     end
 end
