@@ -74,7 +74,7 @@ function love.load()
 
     quitSelection = 2
 
-        -- 震动系统变量
+    -- 震动系统变量
     shakeTimer = 0
     shakeMagnitude = 0
 
@@ -120,6 +120,26 @@ function love.load()
             vsync = true
         }
     )
+
+
+    mosaicShader = love.graphics.newShader('mosaic.glsl')
+    mosaicShader:send('resolution', {VIRTUAL_WIDTH, VIRTUAL_HEIGHT})
+
+    -- 创建临时画布
+    tempCanvas = love.graphics.newCanvas(VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
+    tempCanvas:setFilter('nearest', 'nearest')
+
+    -- 设置过渡参数
+    transition = {
+        active = false,
+        phase = 'out',
+        timer = 0,
+        durationOut = 1.0,
+        durationIn = 1.0,
+        
+        -- 最大像素块大小
+        maxPixelSize = 250
+    }
 end
 
 function love.resize(w,h)
@@ -130,6 +150,33 @@ function love.update(dt)
     shaderTimer = shaderTimer + dt
     crtShader:send('time', shaderTimer)
     Background.update(dt)
+    
+    --过渡--
+    if transition.active then
+        transition.timer = transition.timer + dt
+        
+        if transition.phase == 'out' then
+            if transition.timer >= transition.durationOut then
+                transition.phase = 'in'
+                transition.timer = 0
+                gameState = transition.targetState
+                if gameState == 'serve' then
+                    ball:reset()
+                    player1Score = 0
+                    player2Score = 0
+                    combo = 0
+                    serveTimer = 3
+                end
+            end
+            
+        elseif transition.phase == 'in' then
+            if transition.timer >= transition.durationIn then
+                transition.active = false
+            end
+        end
+        
+        return -- 过渡期间冻结游戏逻辑
+    end
 
     if gameState == 'music_select' then
         updateMusicMenu(dt)
@@ -178,6 +225,7 @@ function love.keypressed(key)
     pressAudio(key)
 
     menuPress(key)
+
 end
 
 function love.draw()
@@ -194,22 +242,28 @@ function love.draw()
 
     drawShake()
 
+    if transition.active then
+        drawTransition()
+    else
 
-    if gameState =='menu' or gameState =='exit' then
-        drawMenu()
-    elseif gameState == 'submenu_players' then
-        drawPlayersSettings()
-    elseif gameState == 'submenu_WinScore' then
-        drawWinScore()
-    elseif gameState == 'submenu_FreeMode' then
-        drawFreeMode()
-    elseif gameState == 'submenu_autoServe' then
-        drawServeSet()
-    elseif gameState == 'music_select' then
-        drawMusicMenu()
-    elseif gameState == 'play' or gameState == 'serve' or gameState == 'victory'or gameState == 'pause' then
-        drawGame()
+        if gameState == 'menu' or gameState == 'exit' then
+            drawMenu()
+        elseif gameState == 'submenu_players' then
+            drawPlayersSettings()
+        elseif gameState == 'submenu_WinScore' then
+            drawWinScore()
+        elseif gameState == 'submenu_FreeMode' then
+            drawFreeMode()
+        elseif gameState == 'submenu_autoServe' then
+            drawServeSet()
+        elseif gameState == 'music_select' then
+            drawMusicMenu()
+        elseif gameState == 'play' or gameState == 'serve' or gameState == 'victory' or gameState == 'pause' then
+            drawGame()
+        end
     end
+
+    love.graphics.setColor(1, 1, 1, 1)
 
     push:finish(crtShader)
 end
@@ -957,9 +1011,10 @@ function menuPress(key)
                 gameState = 'music_select'
             end
         elseif key == 'enter' or key == 'return' then
-            gameState = 'serve'
-            player1Score = 0
-            player2Score = 0
+            transition.active = true
+            transition.phase = 'out'
+            transition.timer = 0
+            transition.targetState = 'serve'
         end
 
     elseif gameState == 'submenu_players' then
@@ -1125,4 +1180,60 @@ function drawShake()
             local dy = math.random(-shakeMagnitude, shakeMagnitude)
             love.graphics.translate(dx, dy)
         end
+end
+
+function drawTransition()
+    -- 保存当前 push 正在使用的画布
+    local currentCanvas = love.graphics.getCanvas()
+
+    -- 切换到临时画布
+    love.graphics.setCanvas(tempCanvas)
+    
+    -- 清空临时画布
+    love.graphics.clear(0, 0, 0, 1)
+
+    -- 重置坐标系 
+    love.graphics.push()
+    love.graphics.origin() 
+
+    love.graphics.clear(20/255, 20/255, 35/255, 1)
+    if musicMenu.selection == 2 then
+        love.graphics.clear(255/255, 255/255, 255/255, 1)
+    elseif musicMenu.selection == 3 then
+        love.graphics.clear(104/255, 145/255, 227/255, 1)
+    end
+
+    drawShake()
+
+    -- 画 Menu 或 Game
+    if transition.phase == 'out' then
+        drawMenu()
+    elseif transition.phase == 'in' then
+        drawGame()
+    end
+
+    love.graphics.pop()
+
+    -- 切回 push 的画布
+    love.graphics.setCanvas(currentCanvas)
+
+    -- 计算像素大小
+    local pixelSize = 1
+    if transition.phase == 'out' then
+        local t = transition.timer / transition.durationOut
+        pixelSize = 1 + (transition.maxPixelSize - 1) * (t * t * t)
+    elseif transition.phase == 'in' then
+        local t = transition.timer / transition.durationIn
+        local k = (1 - t)
+        pixelSize = 1 + (transition.maxPixelSize - 1) * (k * k * k)
+    end
+    
+    -- 画回去
+    love.graphics.setShader(mosaicShader)
+    mosaicShader:send('pixelSize', pixelSize)
+    
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(tempCanvas, 0, 0)
+    
+    love.graphics.setShader()
 end
