@@ -94,11 +94,11 @@ function love.load()
 
     crtShader = love.graphics.newShader('crt.glsl')
     
-    -- 2. 发送分辨率给 Shader (用于计算扫描线密度)
-    -- 注意：这里必须传你的 VIRTUAL 宽高，不是 WINDOW 宽高
+    -- 发送分辨率给 Shader (用于计算扫描线密度)
+    -- 传 VIRTUAL 宽高
     crtShader:send('inputSize', {VIRTUAL_WIDTH, VIRTUAL_HEIGHT})
     
-    -- 3. 初始化时间变量
+    -- 初始化shader时间变量
     shaderTimer = 0
 
     push:setupScreen(
@@ -146,8 +146,7 @@ function love.update(dt)
 
     if shakeTimer > 0 then
         shakeTimer = shakeTimer - dt
-        -- 让震动幅度随时间变小 (Lerp)
-        -- 这样震动会越来越弱，直到消失，手感更好
+        -- 让震动幅度随时间变小
         shakeMagnitude = math.max(0, shakeMagnitude - 10 * dt)
     end
 
@@ -226,7 +225,7 @@ function ballCollision()
 end
 
 function handleCollision(ball, paddle)
-    -- 1. 冷却检测 (CD可以稍微缩短一点点，适应更快的节奏)
+    -- 冷却检测
     if ball.collisionTimer > 0 then return end
 
     if ball:collides(paddle) then
@@ -234,62 +233,56 @@ function handleCollision(ball, paddle)
         sounds['paddle_hit']:play()
         combo = combo + 1
         
-        -- 震动：根据球速和板子速度共同决定，越快震得越猛
+        -- 震动
         local shakePower = (math.abs(ball.dx) + math.abs(paddle.dx)) / 1000
-        startShake(0.5, math.min(shakePower * 10, 8)) -- 震动幅度上限设为8
+        startShake(0.5, math.min(shakePower * 10, 8)) -- 震动幅度上限为8
 
-        -- === 2. 速度计算 (Insane Mode) ===
+        -- 速度计算
         local currentSpeedX = math.abs(ball.dx)
         local paddleSpeedX = math.abs(paddle.dx)
         
-        -- 基础倍率：1.08 (球会越来越快，压迫感极强)
+        -- 基础倍率
         local baseMultiplier = 1.08
         
-        -- 动能传递：提升到 0.5 (板子一半的速度直接加给球)
-        -- 冲刺(250) * 0.5 = 125。
+        -- 动能传递
         local momentumBonus = paddleSpeedX * 1.5
 
-        -- 软上限逻辑放宽：让球能更容易飙到 1000 以上
+        -- 软上限
         if currentSpeedX > 1000 then
             momentumBonus = momentumBonus * 0.5
-            baseMultiplier = 1.04
+            baseMultiplier = 1.1
         end
 
         local newSpeedX = currentSpeedX * baseMultiplier + momentumBonus
         
-        -- 绝对硬上限
+        -- 硬上限
         if newSpeedX > MAX_BALL_SPEED_X then newSpeedX = MAX_BALL_SPEED_X end
-        if newSpeedX < 200 then newSpeedX = 200 end -- 最低速度也提高了
+        if newSpeedX < 200 then newSpeedX = 200 end -- 最低速度
 
-        -- === 3. 物理修正 (引入动态推力) ===
+        -- 物理修正
         local ball_center_x = ball.x + ball.width / 2
         local paddle_center_x = paddle.x + paddle.width / 2
         local delta_x = ball_center_x - paddle_center_x
         
-        -- 重新计算 depth 用于判断方向
+        -- 判断方向
         local min_dist_x = ball.width / 2 + paddle.width / 2
         local min_dist_y = ball.height / 2 + paddle.height / 2
         local depth_x = min_dist_x - math.abs(delta_x)
         local depth_y = min_dist_y - math.abs(ball.y + ball.height/2 - (paddle.y + paddle.height/2))
 
         if depth_x < depth_y then
-            -- 【侧面碰撞】
+            -- 侧面碰撞
             
-            -- Y轴切球 (保持不变)
+            -- Y轴切球
             ball.dy = ball.dy + paddle.dy * FRICTION_COEF
             if ball.dy > MAX_BALL_SPEED_Y then ball.dy = MAX_BALL_SPEED_Y end
             if ball.dy < -MAX_BALL_SPEED_Y then ball.dy = -MAX_BALL_SPEED_Y end
 
-            -- === 【关键逻辑：计算动态安全距离】 ===
-            -- 基础距离 5px + 板子速度的 8%
-            -- 如果冲刺(250)，会额外多推 20px (总共25px)。
-            -- 这能确保板子绝对追不上球，彻底杜绝隧道效应。
+            --隧道效应fix
             local dynamicBuffer = BASE_PUSH + (paddleSpeedX * 0.08)
 
             if delta_x < 0 then
                 -- 球在左边
-                -- 如果板子正在向左猛冲 (paddle.dx < 0)，说明是追尾或者迎头痛击
-                -- 此时 dynamicBuffer 会很大，把球弹得远远的
                 ball.x = paddle.x - ball.width - dynamicBuffer
                 ball.dx = -newSpeedX
             else
@@ -298,7 +291,7 @@ function handleCollision(ball, paddle)
                 ball.dx = newSpeedX
             end
         else
-            -- 【顶部/底部碰撞】
+            -- 顶部/底部碰撞
             local pushY = BASE_PUSH + math.abs(paddle.dy) * 0.05
             if ball.y < paddle.y then
                 ball.y = paddle.y - ball.height - pushY
@@ -361,20 +354,17 @@ function drawMenu()
 
         love.graphics.setFont(titleFont)
         
-        -- 1. 先画阴影 (黑色，位置固定，或者只有微小的浮动)
-        love.graphics.setColor(0, 0, 0, 0.1) -- 半透明黑色
+        -- 阴影
+        love.graphics.setColor(0, 0, 0, 0.1)
         
         love.graphics.printf("100% Hello Pong!", 2, 44 + offsetY, VIRTUAL_WIDTH, 'center') 
-        -- offsetY * 0.2 让阴影也动一点点，模拟光照距离变化
         
-        -- 2. 再画本体 (白色，大幅度浮动)
-        love.graphics.setColor(1, 1, 1, 1) -- 改回白色
+        --本体
+        love.graphics.setColor(1, 1, 1, 1)
 
         colorChange(2,3,74,166,65)
         
         love.graphics.printf("100% Hello Pong!", 0, 40 + offsetY, VIRTUAL_WIDTH, 'center')
-
-        ---
 
         love.graphics.setColor(1, 1, 1, 0.8)
 
@@ -405,14 +395,12 @@ function drawGame()
 
         love.graphics.printf('Player'..tostring(servingPlayer).."'s turn!",0,20,VIRTUAL_WIDTH,'center')
 
+        --缩放文字
+
         if autoServeSet == 1 then
             local secondsLeft = math.ceil(serveTimer)
             if secondsLeft < 1 then secondsLeft = 1 end
 
-            -- 【修改点 1：让它一开始变得更大】
-            -- 原来是 * 0.5，现在改成 * 2.0 甚至更大
-            -- 逻辑：(serveTimer % 1) 是 0.99，乘以 2.0 等于 1.98
-            -- 最终 zoom = 1 + 1.98 ≈ 3倍大小
             local zoom = 1 + (serveTimer % 1) * 1
 
             love.graphics.setFont(largeFont)
@@ -420,14 +408,11 @@ function drawGame()
             local textW = largeFont:getWidth(text)
             local textH = largeFont:getHeight()
 
-            -- 【修改点 2：位置上移】
-            -- VIRTUAL_HEIGHT / 2 是正中心
-            -- 减去 50 (或者更多) 就会往上跑
             local drawY = VIRTUAL_HEIGHT / 2 - 50
 
             love.graphics.print(text, 
-                VIRTUAL_WIDTH / 2,  -- X轴还在中间
-                drawY,              -- Y轴往上移了
+                VIRTUAL_WIDTH / 2,
+                drawY,
                 0,
                 zoom, zoom, 
                 textW / 2, textH / 2)
@@ -438,6 +423,7 @@ function drawGame()
         end
 
     elseif gameState == 'victory' then
+        colorChange(2,3,74,166,65)
         love.graphics.setFont(victoryFont)
         love.graphics.printf('Player'..tostring(winningPlayer).." wins!",0,10,VIRTUAL_WIDTH,'center')
         love.graphics.setFont(smallFont)
@@ -563,17 +549,16 @@ end
 -- 专辑数据初始化
 function loadMusicMenu()
     musicMenu = {
-        selection = 1, -- 当前选第几个
-        timer = 0,     -- 用于计算浮动的时间
-        spacing = 110, -- 两个专辑之间的间距 (像素)
+        selection = 1,
+        timer = 0,     -- 浮动时间
+        spacing = 110, -- 专辑间距
         
-        -- 这里定义你的专辑列表
+        -- 定义列表
         items = {
             {
                 name = "Default",
-                cover = love.graphics.newImage('sprites/cover1.png'), -- 替换你的图片路径
-                music = sounds['music_track1'], -- 替换你的音乐变量
-                -- 下面是用于动画的动态变量
+                cover = love.graphics.newImage('sprites/cover1.png'), 
+                music = sounds['music_track1'], 
                 x = VIRTUAL_WIDTH / 2,
                 y = VIRTUAL_HEIGHT / 2,
                 scale = 1,
@@ -583,7 +568,7 @@ function loadMusicMenu()
                 name = "LuckyStar!!!",
                 cover = love.graphics.newImage('sprites/cover2.png'),
                 music = sounds['music_track2'],
-                x = VIRTUAL_WIDTH / 2 + 110, -- 初始位置稍微错开一点
+                x = VIRTUAL_WIDTH / 2 + 110,
                 y = VIRTUAL_HEIGHT / 2,
                 scale = 0.8,
                 alpha = 0.5
@@ -600,16 +585,13 @@ function loadMusicMenu()
         }
     }
 
-    -- 播放默认第一首
     playSelectedMusic()
 end
 
 function playSelectedMusic()
-    -- 先停止所有音乐（或者停止上一首）
     for _, item in ipairs(musicMenu.items) do
         item.music:stop()
     end
-    -- 播放选中的
     local current = musicMenu.items[musicMenu.selection]
     current.music:setLooping(true)
     current.music:play()
@@ -620,26 +602,24 @@ function updateMusicMenu(dt)
     menu.timer = menu.timer + dt * 2 -- 控制浮动速度
 
     for i, item in ipairs(menu.items) do
-        -- 1. 计算目标位置
-        -- spacing 设为 110 (因为没有倾斜了，宽一点好看)
         local targetX = VIRTUAL_WIDTH / 2 + (i - menu.selection) * 110
         
-        -- 2. 平滑移动 (Lerp X)
+        -- Lerp X
         item.x = lerp(item.x, targetX, 10 * dt)
         
-        -- 3. 上下浮动 (Sine Wave Y)
+        -- Sine Wave
         local baseY = VIRTUAL_HEIGHT / 2 
-        -- i * 0.8 是相位差，让它们像波浪一样起伏，而不是一起动
-        local floatOffset = math.sin(menu.timer + i * 0.8) * 5 
+        -- i * 0.8 是相位差
+        local floatOffset = math.sin(menu.timer + i * 0.8) * 5
         item.y = baseY + floatOffset
 
-        -- 4. 缩放和亮度目标
+        -- 缩放和亮度目标
         local targetScale = 0.8 -- 没选中的大小
-        local targetAlpha = 0.4 -- 没选中的亮度 (灰色)
+        local targetAlpha = 0.4 -- 没选中的亮度
         
         if i == menu.selection then
-            targetScale = 1.2 -- 选中的放大 (1.2倍)
-            targetAlpha = 1.0 -- 选中的全亮
+            targetScale = 1.2 -- 选中的放大
+            targetAlpha = 1.0
         end
         
         -- 5. 平滑应用缩放和亮度
@@ -652,7 +632,7 @@ function musicMenuKeyPressed(key)
     if key == 'left' or key == 'a' then
         if musicMenu.selection > 1 then
             musicMenu.selection = musicMenu.selection - 1
-            sounds['select']:play() -- 播放音效
+            sounds['select']:play()
             playSelectedMusic()
         end
     elseif key == 'right' or key == 'd' then
@@ -662,53 +642,50 @@ function musicMenuKeyPressed(key)
             playSelectedMusic()
         end
     elseif key == 'return' or key == 'z' then
-        -- 确认选择，进入游戏
-        gameState = 'menu' -- 或你定义的其他状态
+        gameState = 'menu'
     end
 end
 
 function drawMusicMenu()
-    -- 背景色：迈阿密风格通常偏深色，比如深紫/深蓝，让封面弹出来
+    --backrgb
     love.graphics.clear(20/255, 20/255, 30/255, 1) 
 
     local menu = musicMenu
 
     for i, item in ipairs(menu.items) do
-        -- 1. 设置透明度：根据 item.alpha (在update里计算好的)
+        -- 设置透明度
         love.graphics.setColor(item.alpha, item.alpha, item.alpha, 1)
 
-        -- 2. 设置原点为图片中心 (假设你已经把图片处理成 80x80 了)
-        -- 如果没处理好，可以用 item.cover:getWidth()/2
+        -- 设置原点
         local ox = item.cover:getWidth() / 2
         local oy = item.cover:getHeight() / 2
         
-        -- 3. 绘制图片 (没有倾斜参数)
+        -- 绘制 
         love.graphics.draw(
             item.cover, 
             item.x, 
             item.y, 
-            0,          -- 旋转角度 (0表示正立)
-            item.scale, -- X轴缩放
-            item.scale, -- Y轴缩放
-            ox, oy      -- 原点
+            0,          -- 旋转角度
+            item.scale,
+            item.scale,
+            ox, oy
         )
         
-        -- 4. 绘制标题 (只有选中的显示)
+        -- 绘制标题
         if i == menu.selection then
-             love.graphics.setColor(1, 1, 1, 1) -- 字体纯白
-             -- 字体位置：在专辑下方 50 像素处
+             love.graphics.setColor(1, 1, 1, 1)
+             -- 专辑下方 50 像素处
              love.graphics.printf(item.name, 0, item.y + 50, VIRTUAL_WIDTH, 'center')
         end
     end
-    
-    -- 重置颜色
+
     love.graphics.setColor(1, 1, 1, 1)
 
     colorChange(2,3,74,166,65)
     
     
-    -- 简单的操作提示
-    love.graphics.setFont(smallFont) -- 记得确保你定义了字体，没有就删掉这行
+    -- 操作提示
+    love.graphics.setFont(smallFont)
     love.graphics.printf("SELECT ALBUM", 0, 20, VIRTUAL_WIDTH, 'center')
 end
 
@@ -970,8 +947,7 @@ end
 
 function drawShake()
     if shakeTimer > 0 then
-            -- 在 X 和 Y 轴上随机偏移一个 (-magnitude, magnitude) 之间的值
-            -- 比如幅度是 3，就会在 -3 到 3 之间随机跳动
+            -- X Y轴随机偏移
             local dx = math.random(-shakeMagnitude, shakeMagnitude)
             local dy = math.random(-shakeMagnitude, shakeMagnitude)
             love.graphics.translate(dx, dy)
