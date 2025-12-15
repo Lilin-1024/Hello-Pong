@@ -56,10 +56,39 @@ function love.load()
         ['dash']=love.audio.newSource('sounds/dash.wav','static'),
         ['select']=love.audio.newSource('sounds/select.wav','static'),
         ['pause']=love.audio.newSource('sounds/select.wav','static'),
-        ['music_track1']=love.audio.newSource('sounds/Resonance.wav','static'),
-        ['music_track2']=love.audio.newSource('sounds/LuckyStar2.wav','static'),
-        ['music_track3']=love.audio.newSource('sounds/LuckyStar1.wav','static'),
+        ['music_track1']=love.audio.newSource('sounds/track/Resonance.wav','static'),
+        ['music_track2']=love.audio.newSource('sounds/track/LuckyStar2.wav','static'),
+        ['music_track3']=love.audio.newSource('sounds/track/LuckyStar1.wav','static'),
+        ['music_track4']=love.audio.newSource('sounds/track/Misty Memory (Night Version).wav','static'),
+        ['music_track5']=love.audio.newSource('sounds/track/No title.wav','static'),
     }
+
+    THEMES = {
+    [1] = {
+        bg = {20/255, 20/255, 35/255, 1},
+        fg = {1, 1, 1, 1}
+    },
+
+    [2] = {
+        bg = {255/255, 255/255, 255/255, 1},
+        fg = {104/255, 145/255, 227/255, 1}
+    },
+
+    [3] = {
+        bg = {104/255, 145/255, 227/255, 1},
+        fg = {1, 1, 1, 1}
+    },
+
+    [4] = {
+        bg = {45/255, 44/255, 89/255, 0.35},
+        fg = {191/255, 54/255, 118/255, 0.75}
+    },
+
+    [5] = {
+        bg = {191/255, 21/255, 115/255, 0.75},
+        fg = {50/255, 88/255, 166/255, 1}
+    }
+}
 
     --initialization
     player1Score = 0
@@ -231,21 +260,14 @@ end
 function love.draw()
     push:start()
 
-    love.graphics.clear(20/255, 20/255, 35/255, 1)
-    if musicMenu.selection == 2 then
-        love.graphics.clear(255/255, 255/255, 255/255, 1)
-    end
-
-    if musicMenu.selection == 3 then
-        love.graphics.clear(104/255, 145/255, 227/255, 1)
-    end
+    local currentTheme = THEMES[musicMenu.selection]
+    love.graphics.clear(currentTheme.bg)
 
     drawShake()
 
     if transition.active then
         drawTransition()
     else
-
         if gameState == 'menu' or gameState == 'exit' then
             drawMenu()
         elseif gameState == 'submenu_players' then
@@ -376,6 +398,8 @@ function handleCollision(ball, paddle)
 end
 
 function drawMenuOptions()
+    local currentTheme = THEMES[musicMenu.selection]
+
     love.graphics.setFont(instructFont)
 
     local startX = 70
@@ -384,78 +408,60 @@ function drawMenuOptions()
 
     for i, item in ipairs(menuItems) do
         if i == 5 then
-
             local x = VIRTUAL_WIDTH - 50
             local y2 = VIRTUAL_HEIGHT - 30
 
             if selectedItem == 5 then
-                love.graphics.setColor(1, 1, 0)
+                love.graphics.setColor(1, 1, 0, 1)
             else
-                love.graphics.setColor(1, 1, 1)
-
-                colorChange(2,3,74,166,65)
-
+                love.graphics.setColor(currentTheme.fg)
             end
 
             love.graphics.print(item, x, y2)
 
         else
-            -- 1~4 
             local x = startX + (i - 1) * spacing
 
             if selectedItem == i then
-                love.graphics.setColor(1, 1, 0)
+                love.graphics.setColor(1, 1, 0, 1)
             else
-                love.graphics.setColor(1, 1, 1)
-
-                colorChange(2,3,74,166,65)
+                love.graphics.setColor(currentTheme.fg)
             end
 
             love.graphics.print(item, x, y)
         end
     end
 
-    love.graphics.setColor(1, 1, 1)
-    colorChange(2,3,74,166,65)
-
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function drawMenu()
-    Background.draw()
-    
+    local currentTheme = THEMES[musicMenu.selection]
+    Background.draw(currentTheme.bg, currentTheme.fg)
+
     local offsetY = math.sin(love.timer.getTime() * 3) * 3
 
     love.graphics.setFont(titleFont)
 
     -- 阴影
     love.graphics.setColor(0, 0, 0, 0.1)
-
     love.graphics.printf("100% Hello Pong!", 2, 44 + offsetY, VIRTUAL_WIDTH, 'center') 
         
-    --本体
-    love.graphics.setColor(1, 1, 1, 1)
-
-    colorChange(2,3,74,166,65)
-        
+    love.graphics.setColor(currentTheme.fg) 
     love.graphics.printf("100% Hello Pong!", 0, 40 + offsetY, VIRTUAL_WIDTH, 'center')
 
-    love.graphics.setColor(1, 1, 1, 0.8)
-
-    colorChange(2,3,74,166,65)
-        
+    love.graphics.setColor(currentTheme.fg[1], currentTheme.fg[2], currentTheme.fg[3], 0.8)
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to navigate and Z to select >", 0, 95,VIRTUAL_WIDTH, "center")
-    love.graphics.setColor(1, 1, 1, 1)
-
-    colorChange(2,3,74,166,65)
-        
-
+    
+    love.graphics.setColor(currentTheme.fg)
     love.graphics.setFont(smallFont)
     love.graphics.printf("-- press enter to start --", 0, 110, VIRTUAL_WIDTH, "center")
 
-    --option
+    love.graphics.setColor(currentTheme.fg)
     drawMenuOptions()
 
+    -- 弹窗保持原样
     if gameState == 'exit' then
         -- 黑色遮罩
         love.graphics.setColor(0, 0, 0, 0.7)
@@ -500,22 +506,21 @@ function drawMenu()
 end
 
 function drawGame()
+    local currentTheme = THEMES[musicMenu.selection]
+
     love.graphics.setFont(smallFont)
 
+    love.graphics.setColor(currentTheme.fg)
     love.graphics.print('Combo: '..tostring(combo),360,30)
 
-    love.graphics.setColor(1, 1, 1, 0.2)
+    love.graphics.setColor(currentTheme.fg[1], currentTheme.fg[2], currentTheme.fg[3], 0.2)
     love.graphics.setLineWidth(2)
     love.graphics.line(VIRTUAL_WIDTH / 2, 0, VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT)
-    love.graphics.setColor(1, 1, 1, 1)
+
+    love.graphics.setColor(currentTheme.fg)
 
     if gameState == 'serve' then
-        colorChange(2,3,74,166,65)
-        
-
         love.graphics.printf('Player'..tostring(servingPlayer).."'s turn!",0,20,VIRTUAL_WIDTH,'center')
-
-        --缩放文字
 
         if autoServeSet == 1 then
             local secondsLeft = math.ceil(serveTimer)
@@ -543,7 +548,6 @@ function drawGame()
         end
 
     elseif gameState == 'victory' then
-        colorChange(2,3,74,166,65)
         love.graphics.setFont(victoryFont)
         love.graphics.printf('Player'..tostring(winningPlayer).." wins!",0,10,VIRTUAL_WIDTH,'center')
         love.graphics.setFont(smallFont)
@@ -551,7 +555,7 @@ function drawGame()
     end
 
     if gameState == 'serve' or gameState == 'play' or gameState == 'victory' or gameState == 'pause' then
-        colorChange(2,3,74,166,65)
+        love.graphics.setColor(currentTheme.fg)
         
         love.graphics.setFont(scoreFont)
         love.graphics.print(player1Score,VIRTUAL_WIDTH / 2 - 50, VIRTUAL_HEIGHT / 3)
@@ -562,10 +566,8 @@ function drawGame()
 
         ball:render()
     end
-    
-    --暂停菜单
+
     if gameState == 'pause' then
-        -- 黑色遮罩
         love.graphics.setColor(0, 0, 0, 0.5)
         love.graphics.rectangle('fill', 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT)
 
@@ -574,10 +576,10 @@ function drawGame()
         local boxX = VIRTUAL_WIDTH / 2 - boxWidth / 2
         local boxY = VIRTUAL_HEIGHT / 2 - boxHeight / 2
 
-        love.graphics.setColor(1, 1, 1, 1) -- 背景
+        love.graphics.setColor(1, 1, 1, 1) 
         love.graphics.rectangle('fill', boxX, boxY, boxWidth, boxHeight)
         
-        love.graphics.setColor(0, 0, 0, 1) -- 边框
+        love.graphics.setColor(0, 0, 0, 1)
         love.graphics.setLineWidth(2)
         love.graphics.rectangle('line', boxX, boxY, boxWidth, boxHeight)
 
@@ -587,7 +589,6 @@ function drawGame()
         local textY_Resume = boxY + 20
         local textY_Menu = boxY + 50
 
-        -- 绘制 "RESUME"
         if pauseSelection == 1 then
             love.graphics.setColor(0, 0, 0, 1)
             love.graphics.print("> RESUME", textX + 20, textY_Resume)
@@ -596,7 +597,6 @@ function drawGame()
             love.graphics.print("  RESUME", textX + 20, textY_Resume)
         end
 
-        -- 绘制 "MENU"
         if pauseSelection == 2 then
             love.graphics.setColor(0, 0, 0, 1)
             love.graphics.print("> MENU", textX + 20, textY_Menu)
@@ -604,42 +604,37 @@ function drawGame()
             love.graphics.setColor(0, 0, 0, 0.7)
             love.graphics.print("  MENU", textX + 20, textY_Menu)
         end
-        
-        -- 暂停标题
+
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.printf("PAUSED", 0, boxY - 10, VIRTUAL_WIDTH, 'center')
     end
 end
 
 function drawPlayersSettings()
-    love.graphics.setColor(1,1,1,1)
+    local currentTheme = THEMES[musicMenu.selection]
 
-    colorChange(2,3,74,166,65)
-    
-
+    love.graphics.setColor(currentTheme.fg)
     love.graphics.setFont(instructFont)
 
     love.graphics.printf("Select Players", 0, 40, VIRTUAL_WIDTH, "center")
 
     local text = "Players : " .. tostring(playersConfig)
-    
+
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
-    love.graphics.setColor(1, 1, 1, 0.8)
-
-    colorChange(2,3,74,166,65)
-    
+    love.graphics.setColor(currentTheme.fg[1], currentTheme.fg[2], currentTheme.fg[3], 0.8)
 
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to change and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function drawWinScore()
-    love.graphics.setColor(1,1,1,1)
-    love.graphics.setFont(instructFont)
+    local currentTheme = THEMES[musicMenu.selection]
 
-    colorChange(2,3,74,166,65)
-    
+    love.graphics.setColor(currentTheme.fg)
+    love.graphics.setFont(instructFont)
 
     love.graphics.printf("Set the Win Score", 0, 40, VIRTUAL_WIDTH, "center")
 
@@ -647,19 +642,19 @@ function drawWinScore()
 
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
-    love.graphics.setColor(1, 1, 1, 0.8)
+    love.graphics.setColor(currentTheme.fg[1], currentTheme.fg[2], currentTheme.fg[3], 0.8)
 
-    colorChange(2,3,74,166,65)
-    
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function drawFreeMode()
-    love.graphics.setColor(1,1,1,1)
+    local currentTheme = THEMES[musicMenu.selection]
+
+    love.graphics.setColor(currentTheme.fg)
     love.graphics.setFont(instructFont)
-    colorChange(2,3,74,166,65)
-    
 
     love.graphics.printf("Enable the Free Mode", 0, 40, VIRTUAL_WIDTH, "center")
 
@@ -673,20 +668,19 @@ function drawFreeMode()
 
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
-    love.graphics.setColor(1, 1, 1, 0.8)
+    love.graphics.setColor(currentTheme.fg[1], currentTheme.fg[2], currentTheme.fg[3], 0.8)
 
-    colorChange(2,3,74,166,65)
-    
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function drawServeSet()
-    love.graphics.setColor(1,1,1,1)
-    love.graphics.setFont(instructFont)
+    local currentTheme = THEMES[musicMenu.selection]
 
-    colorChange(2,3,74,166,65)
-    
+    love.graphics.setColor(currentTheme.fg)
+    love.graphics.setFont(instructFont)
 
     love.graphics.printf("Enable Auto Serve", 0, 40, VIRTUAL_WIDTH, "center")
 
@@ -700,13 +694,12 @@ function drawServeSet()
 
     love.graphics.printf(text, 0, 120, VIRTUAL_WIDTH, "center")
 
-    love.graphics.setColor(1, 1, 1, 0.8)
-
-    colorChange(2,3,74,166,65)
-    
+    love.graphics.setColor(currentTheme.fg[1], currentTheme.fg[2], currentTheme.fg[3], 0.8)
 
     love.graphics.setFont(smallFont)
     love.graphics.printf("< Use <- -> to adjust and Z to confirm >", 0, VIRTUAL_HEIGHT - 40, VIRTUAL_WIDTH, "center")
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function lerp(a, b, t)
@@ -748,7 +741,25 @@ function loadMusicMenu()
                 y = VIRTUAL_HEIGHT / 2,
                 scale = 0.8,
                 alpha = 0.5
-            }
+            },
+            {
+                name = "Misty Memory (Night Version)",
+                cover = love.graphics.newImage('sprites/cover4.png'),
+                music = sounds['music_track4'],
+                x = VIRTUAL_WIDTH / 2 + 220,
+                y = VIRTUAL_HEIGHT / 2,
+                scale = 0.8,
+                alpha = 0.5
+            },
+            {
+                name = "No title",
+                cover = love.graphics.newImage('sprites/cover5.png'),
+                music = sounds['music_track5'],
+                x = VIRTUAL_WIDTH / 2 + 220,
+                y = VIRTUAL_HEIGHT / 2,
+                scale = 0.8,
+                alpha = 0.5
+            },
         }
     }
 
@@ -848,9 +859,6 @@ function drawMusicMenu()
 
     love.graphics.setColor(1, 1, 1, 1)
 
-    colorChange(2,3,74,166,65)
-    
-    
     -- 操作提示
     love.graphics.setFont(smallFont)
     love.graphics.printf("SELECT ALBUM", 0, 20, VIRTUAL_WIDTH, 'center')
@@ -1183,29 +1191,19 @@ function drawShake()
 end
 
 function drawTransition()
-    -- 保存当前 push 正在使用的画布
     local currentCanvas = love.graphics.getCanvas()
 
-    -- 切换到临时画布
     love.graphics.setCanvas(tempCanvas)
-    
-    -- 清空临时画布
-    love.graphics.clear(0, 0, 0, 1)
 
-    -- 重置坐标系 
     love.graphics.push()
     love.graphics.origin() 
 
-    love.graphics.clear(20/255, 20/255, 35/255, 1)
-    if musicMenu.selection == 2 then
-        love.graphics.clear(255/255, 255/255, 255/255, 1)
-    elseif musicMenu.selection == 3 then
-        love.graphics.clear(104/255, 145/255, 227/255, 1)
-    end
+    local currentTheme = THEMES[musicMenu.selection]
+
+    love.graphics.clear(currentTheme.bg)
 
     drawShake()
 
-    -- 画 Menu 或 Game
     if transition.phase == 'out' then
         drawMenu()
     elseif transition.phase == 'in' then
@@ -1214,10 +1212,8 @@ function drawTransition()
 
     love.graphics.pop()
 
-    -- 切回 push 的画布
     love.graphics.setCanvas(currentCanvas)
 
-    -- 计算像素大小
     local pixelSize = 1
     if transition.phase == 'out' then
         local t = transition.timer / transition.durationOut
@@ -1227,13 +1223,12 @@ function drawTransition()
         local k = (1 - t)
         pixelSize = 1 + (transition.maxPixelSize - 1) * (k * k * k)
     end
-    
-    -- 画回去
+
     love.graphics.setShader(mosaicShader)
     mosaicShader:send('pixelSize', pixelSize)
-    
+
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(tempCanvas, 0, 0)
-    
+
     love.graphics.setShader()
 end

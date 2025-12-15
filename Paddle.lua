@@ -94,25 +94,21 @@ function Paddle:spawnParticle()
 end
 
 function Paddle:render()
-    love.graphics.setColor(1, 1, 1, 1)
+    local currentTheme = THEMES[musicMenu.selection]
 
-    colorChange(2,3,74,166,65)
-    
-        for _, p in ipairs(self.particles) do
-            love.graphics.rectangle('fill', p.x, p.y, p.size, p.size)
-        end        
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(currentTheme.fg)
 
-    colorChange(2,3,74,166,65)
-    
+    for _, p in ipairs(self.particles) do
 
-    love.graphics.rectangle('fill',self.x,self.y,self.width,self.height)
+        love.graphics.rectangle('fill', p.x, p.y, p.size, p.size)
+    end
+
+    love.graphics.rectangle('fill', self.x, self.y, self.width, self.height)
 
     self:drawCooldownUI()
 end
 
 function Paddle:drawCooldownUI()
-
     local radius = 4
     local uiX, uiY
 
@@ -128,18 +124,14 @@ function Paddle:drawCooldownUI()
     else
         ratio = 1
     end
-    
-    love.graphics.setColor(0.3, 0.3, 0.3, 1)
 
-    colorChange(2,3,74,166,65)
-    
+    local currentTheme = THEMES[musicMenu.selection]
+
+    love.graphics.setColor(currentTheme.fg[1], currentTheme.fg[2], currentTheme.fg[3], 0.3)
     love.graphics.circle('line', uiX, uiY, radius)
-    
-    if ratio > 0 then
-        love.graphics.setColor(1, 1, 1, 1)
 
-        colorChange(2,3,74,166,65)
-        
+    if ratio > 0 then
+        love.graphics.setColor(currentTheme.fg)
         love.graphics.arc('line', 'open', uiX, uiY, radius, -math.pi/2, -math.pi/2 + (math.pi * 2 * ratio))
     end
 end
